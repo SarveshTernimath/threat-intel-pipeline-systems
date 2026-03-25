@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Threat Intel Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --panel-bg: rgba(30, 41, 59, 0.7);
+            --border-color: rgba(255, 255, 255, 0.1);
+            --text-main: #f8fafc;
+            --text-sub: #94a3b8;
+            --accent: #3b82f6;
+            --accent-hover: #2563eb;
+            --crit: #ef4444;
+            --high: #f97316;
+            --med: #eab308;
+            --low: #22c55e; /* Updated to green per requirements */
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-color);
+            background-image: radial-gradient(circle at top right, rgba(59, 130, 246, 0.15), transparent 40%),
+                              radial-gradient(circle at bottom left, rgba(239, 68, 68, 0.1), transparent 40%);
+            color: var(--text-main);
+            font-family: 'Inter', sans-serif;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 1200px;
+            padding: 2rem;
+            margin-top: 2rem;
+        }
+
+        /* Glassmorphism Card */
+        .dashboard-card {
+            background: var(--panel-bg);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 2rem;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            animation: fadeIn 0.6s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        h1 {
+            font-size: 2.2rem;
+            font-weight: 800;
+            margin-top: 0;
+            margin-bottom: 1.5rem;
+            background: linear-gradient(90deg, #60a5fa, #a78bfa);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            display: inline-block;
+        }
+
+        /* Controls */
+        .controls {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 2rem;
+            flex-wrap: wrap;
+        }
+
+        input, select {
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+            padding: 0.75rem 1rem;
+            border-radius: 8px;
+            font-family: 'Inter', sans-serif;
+            font-size: 0.95rem;
+            flex: 1;
+            min-width: 200px;
+            transition: all 0.3s ease;
+        }
+
+        input:focus, select:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+        }
+
+        button {
+            background: var(--accent);
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            font-family: 'Inter', sans-serif;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 6px -1px rgba(59, 130, 246, 0.3);
+        }
+
+        button:hover {
+            background: var(--accent-hover);
+            transform: translateY(-2px);
+            box-shadow: 0 10px 15px -3px rgba(59, 130, 246, 0.4);
+        }
+        
+        /* Metrics Grid */
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+        .metric-card {
+            background: rgba(15, 23, 42, 0.4);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 1.5rem;
+            text-align: center;
+            transition: transform 0.2s;
+        }
+        .metric-card:hover {
+            transform: translateY(-5px);
+        }
+        .metric-card h3 {
+            margin: 0;
+            font-size: 0.85rem;
+            color: var(--text-sub);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .metric-card p {
+            margin: 10px 0 0 0;
+            font-size: 2.2rem;
+            font-weight: 800;
+        }
+        .metric-total p { color: #38bdf8; }
+        .metric-crit p { color: var(--crit); }
+        .metric-high p { color: var(--high); }
+        .metric-med p { color: var(--med); }
+        .metric-low p { color: var(--low); }
+
+        /* Charts Grid */
+        .charts-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        @media (max-width: 768px) {
+            .charts-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+        .chart-card {
+            background: rgba(15, 23, 42, 0.4);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 1.5rem;
+            display: flex;
+            flex-direction: column;
+        }
+        .chart-card h3 {
+            margin-top: 0;
+            margin-bottom: 1rem;
+            color: var(--text-sub);
+            text-transform: uppercase;
+            font-size: 0.85rem;
+            letter-spacing: 0.05em;
+        }
+        .chart-wrapper {
+            flex: 1;
+            position: relative;
+            min-height: 250px;
+        }
+        
+        .keyword-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+        .keyword-list li {
+            background: rgba(56, 189, 248, 0.1);
+            border: 1px solid rgba(56, 189, 248, 0.2);
+            padding: 0.75rem 1rem;
+            border-radius: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: background 0.2s;
+        }
+        .keyword-list li:hover {
+            background: rgba(56, 189, 248, 0.15);
+        }
+        .keyword-list li span.kw-name {
+            color: var(--text-main);
+            font-weight: 600;
+            text-transform: capitalize;
+        }
+        .keyword-list li span.kw-count {
+            background: rgba(56, 189, 248, 0.2);
+            color: #38bdf8;
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.8rem;
+            font-weight: 800;
+        }
+
+        /* Table */
+        .table-wrapper {
+            overflow-x: auto;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            background: rgba(15, 23, 42, 0.4);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+        }
+
+        th {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 1rem;
+            font-weight: 600;
+            color: var(--text-sub);
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            font-size: 0.8rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        td {
+            padding: 1rem;
+            border-bottom: 1px solid var(--border-color);
+            color: #cbd5e1;
+            vertical-align: top;
+            transition: background 0.2s ease;
+        }
+
+        tr:hover td {
+            background: rgba(255, 255, 255, 0.03);
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        .cve-id {
+            font-family: monospace;
+            color: #38bdf8;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        .desc-text {
+            display: -webkit-box;
+            -webkit-line-clamp: 3;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            font-size: 0.9rem;
+            line-height: 1.5;
+            max-width: 500px;
+        }
+
+        /* Severity Badges */
+        .badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .badge.critical { background: rgba(239, 68, 68, 0.15); color: var(--crit); border: 1px solid rgba(239, 68, 68, 0.3); }
+        .badge.high { background: rgba(249, 115, 22, 0.15); color: var(--high); border: 1px solid rgba(249, 115, 22, 0.3); }
+        .badge.medium { background: rgba(234, 179, 8, 0.15); color: var(--med); border: 1px solid rgba(234, 179, 8, 0.3); }
+        .badge.low, .badge.unknown { background: rgba(34, 197, 94, 0.15); color: var(--low); border: 1px solid rgba(34, 197, 94, 0.3); }
+
+        /* Keyword Tags */
+        .kw-badge {
+            display: inline-block;
+            background: rgba(56, 189, 248, 0.1);
+            color: #38bdf8;
+            border: 1px solid rgba(56, 189, 248, 0.2);
+            padding: 0.15rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            margin: 2px;
+            white-space: nowrap;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 3rem;
+            color: var(--text-sub);
+            font-size: 1.1rem;
+            animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse {
+            0% { opacity: 0.6; }
+            50% { opacity: 1; }
+            100% { opacity: 0.6; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="dashboard-card">
+        <h1>Threat Intelligence Matrix</h1>
+        
+        <div class="controls">
+            <select id="searchType" style="flex: 0.5;">
+                <option value="keyword">Standard Keyword</option>
+                <option value="semantic">AI Semantic Search</option>
+            </select>
+            <input type="text" id="keywordInput" placeholder="Search description or queries..." onkeydown="if(event.key === 'Enter') fetchThreats()">
+            <select id="severitySelect">
+                <option value="">All Severities</option>
+                <option value="critical">Critical</option>
+                <option value="high">High</option>
+                <option value="medium">Medium</option>
+                <option value="low">Low</option>
+            </select>
+            <button onclick="fetchThreats()">Search Threats</button>
+        </div>
+
+        <!-- NEW: Metrics Summary Panel -->
+        <div class="metrics-grid">
+            <div class="metric-card metric-total">
+                <h3>Total Threats</h3>
+                <p id="countTotal">0</p>
+            </div>
+            <div class="metric-card metric-crit">
+                <h3>Critical</h3>
+                <p id="countCrit">0</p>
+            </div>
+            <div class="metric-card metric-high">
+                <h3>High</h3>
+                <p id="countHigh">0</p>
+            </div>
+            <div class="metric-card metric-med">
+                <h3>Medium</h3>
+                <p id="countMed">0</p>
+            </div>
+            <div class="metric-card metric-low">
+                <h3>Low</h3>
+                <p id="countLow">0</p>
+            </div>
+        </div>
+
+        <!-- NEW: Charts Grid -->
+        <div class="charts-grid">
+            <div class="chart-card">
+                <h3>Severity Distribution</h3>
+                <div class="chart-wrapper">
+                    <canvas id="severityChart"></canvas>
+                </div>
+            </div>
+            <div class="chart-card">
+                <h3>Top Threat Patterns</h3>
+                <ul class="keyword-list" id="topKeywordsList">
+                    <!-- Populated via JS -->
+                </ul>
+            </div>
+        </div>
+
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th>CVE Identifier</th>
+                        <th>Severity</th>
+                        <th>Description</th>
+                        <th>NLP Keywords</th>
+                    </tr>
+                </thead>
+                <tbody id="tableBody">
+                    <tr>
+                        <td colspan="4" style="text-align: center; padding: 2rem; color: #94a3b8;">
+                            Hit search to load current threat data.
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+    let severityChartInstance = null;
+
+    function updateMetrics(data) {
+        let total = data.length;
+        let crit = 0, high = 0, med = 0, low = 0;
+        
+        const kwCounts = {};
+
+        data.forEach(threat => {
+            // Count severity
+            const sev = (threat.severity || 'unknown').toLowerCase();
+            if (sev === 'critical') crit++;
+            else if (sev === 'high') high++;
+            else if (sev === 'medium') med++;
+            else low++; // Anything else, including 'low'
+
+            // Count keywords
+            if (threat.keywords && Array.isArray(threat.keywords)) {
+                threat.keywords.forEach(kw => {
+                    kwCounts[kw] = (kwCounts[kw] || 0) + 1;
+                });
+            }
+        });
+
+        // Update DOM stats
+        document.getElementById('countTotal').innerText = total;
+        document.getElementById('countCrit').innerText = crit;
+        document.getElementById('countHigh').innerText = high;
+        document.getElementById('countMed').innerText = med;
+        document.getElementById('countLow').innerText = low;
+
+        // Render Chart.js
+        const ctx = document.getElementById('severityChart').getContext('2d');
+        if (severityChartInstance) {
+            severityChartInstance.destroy();
+        }
+
+        Chart.defaults.color = '#94a3b8';
+        Chart.defaults.font.family = "'Inter', sans-serif";
+
+        severityChartInstance = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: ['Critical', 'High', 'Medium', 'Low'],
+                datasets: [{
+                    label: 'Threat Count',
+                    data: [crit, high, med, low],
+                    backgroundColor: [
+                        'rgba(239, 68, 68, 0.8)',   // Red
+                        'rgba(249, 115, 22, 0.8)',  // Orange
+                        'rgba(234, 179, 8, 0.8)',   // Yellow
+                        'rgba(34, 197, 94, 0.8)'    // Green
+                    ],
+                    borderColor: [
+                        '#ef4444',
+                        '#f97316',
+                        '#eab308',
+                        '#22c55e'
+                    ],
+                    borderWidth: 1,
+                    borderRadius: 6
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        backgroundColor: 'rgba(15, 23, 42, 0.9)',
+                        titleColor: '#fff',
+                        bodyColor: '#cbd5e1',
+                        borderColor: 'rgba(255, 255, 255, 0.1)',
+                        borderWidth: 1
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                        ticks: { stepSize: 1 }
+                    },
+                    x: {
+                        grid: { display: false }
+                    }
+                }
+            }
+        });
+
+        // Process Top Keywords
+        const sortedKWs = Object.entries(kwCounts)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 5); // top 5
+
+        const kwListEl = document.getElementById('topKeywordsList');
+        kwListEl.innerHTML = '';
+        if (sortedKWs.length === 0) {
+            kwListEl.innerHTML = '<li><span class="kw-name" style="color: #64748b;">No keywords found</span></li>';
+        } else {
+            sortedKWs.forEach(([kw, count]) => {
+                const li = document.createElement('li');
+                li.innerHTML = `<span class="kw-name">${kw}</span> <span class="kw-count">${count}</span>`;
+                kwListEl.appendChild(li);
+            });
+        }
+    }
+
+    function resetMetrics() {
+        document.getElementById('countTotal').innerText = 0;
+        document.getElementById('countCrit').innerText = 0;
+        document.getElementById('countHigh').innerText = 0;
+        document.getElementById('countMed').innerText = 0;
+        document.getElementById('countLow').innerText = 0;
+        
+        if (severityChartInstance) {
+            severityChartInstance.destroy();
+            severityChartInstance = null;
+        }
+        
+        document.getElementById('topKeywordsList').innerHTML = '<li><span class="kw-name" style="color: #64748b;">No data</span></li>';
+    }
+
+    async function fetchThreats() {
+        const searchType = document.getElementById('searchType').value;
+        const keyword = document.getElementById('keywordInput').value.trim();
+        const severity = document.getElementById('severitySelect').value;
+        const tbody = document.getElementById('tableBody');
+        
+        if (searchType === 'semantic' && !keyword) {
+            tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: #ef4444; padding: 2rem;">Please enter a search term for the AI to analyze.</td></tr>';
+            resetMetrics();
+            return;
+        }
+
+        // Hardcoded requirement endpoint logic
+        const url = new URL(searchType === 'semantic' ? 'http://127.0.0.1:8080/semantic-search' : 'http://127.0.0.1:8080/search');
+        
+        // Always append limit=50 as per requirements
+        url.searchParams.append('limit', '50');
+
+        if (keyword) {
+            if (searchType === 'semantic') url.searchParams.append('query', keyword);
+            else url.searchParams.append('keyword', keyword);
+        }
+        if (severity) url.searchParams.append('severity', severity);
+
+        tbody.innerHTML = '<tr><td colspan="4"><div class="loading">Scanning Elasticsearch...</div></td></tr>';
+
+        try {
+            const response = await fetch(url);
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+            
+            const data = await response.json();
+            tbody.innerHTML = '';
+            
+            if (!data || data.length === 0) {
+                // Smart Empty State
+                tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 2rem; color: #94a3b8; font-size: 1.1rem; font-weight: 600;">No threats found</td></tr>';
+                resetMetrics();
+                return;
+            }
+            
+            // Build UI
+            updateMetrics(data);
+
+            data.forEach(threat => {
+                const tr = document.createElement('tr');
+                
+                const sevLevel = (threat.severity || 'unknown').toLowerCase();
+                const validSevs = ['critical', 'high', 'medium', 'low'];
+                const sevClass = validSevs.includes(sevLevel) ? sevLevel : 'unknown';
+                
+                const keywords = threat.keywords || [];
+                const kwHtml = keywords.length > 0 
+                    ? keywords.map(k => `<span class="kw-badge">${k}</span>`).join('')
+                    : `<span style="color: #64748b; font-size: 0.8rem;">None detected</span>`;
+
+                tr.innerHTML = `
+                    <td class="cve-id">${threat.cve_id || 'N/A'}</td>
+                    <td><span class="badge ${sevClass}">${sevLevel}</span></td>
+                    <td><div class="desc-text" title="${threat.description}">${threat.description || 'N/A'}</div></td>
+                    <td>${kwHtml}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        } catch (error) {
+            console.error('Fetch error:', error);
+            // Smart Error State
+            tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: #ef4444; padding: 2rem; font-size: 1.1rem; font-weight: 600;">
+                Backend not reachable
+            </td></tr>`;
+            resetMetrics();
+        }
+    }
+
+    document.addEventListener("DOMContentLoaded", fetchThreats);
+</script>
+
+</body>
+</html>
