@@ -19,6 +19,15 @@ app.add_middleware(
 ELASTICSEARCH_URL = os.getenv("ELASTICSEARCH_URL", "http://localhost:9200")
 ES_URL = f"{ELASTICSEARCH_URL}/threats/_search"
 
+@app.on_event("startup")
+def ensure_index():
+    index_url = f"{ELASTICSEARCH_URL}/threats"
+    try:
+        if requests.head(index_url).status_code == 404:
+            requests.put(index_url)
+    except Exception as e:
+        print(f"Startup index check failed: {e}")
+
 @app.get("/search")
 def search_threats(
     keyword: str = Query(None, description="Search across description and keywords"),

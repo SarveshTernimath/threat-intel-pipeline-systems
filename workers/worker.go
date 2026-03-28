@@ -8,6 +8,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"os"
 	"os/exec"
 	"strings"
 	"sync"
@@ -66,7 +67,11 @@ func main() {
 					return
 				}
 
-				esURL := fmt.Sprintf("http://localhost:9200/threats/_doc/%s", threat.CVEID)
+				esBaseUrl := os.Getenv("ELASTICSEARCH_URL")
+				if esBaseUrl == "" {
+					esBaseUrl = "http://localhost:9200"
+				}
+				esURL := fmt.Sprintf("%s/threats/_doc/%s", esBaseUrl, threat.CVEID)
 
 			cmd := exec.Command("python", "../nlp_service/entity_extractor.py")
 			cmd.Stdin = strings.NewReader(threat.Description)
