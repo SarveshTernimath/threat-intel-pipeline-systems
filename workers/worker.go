@@ -8,6 +8,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"strings"
@@ -71,6 +72,7 @@ func main() {
 				if esBaseUrl == "" {
 					esBaseUrl = "http://localhost:9200"
 				}
+				esBaseUrl = strings.TrimRight(esBaseUrl, "/")
 				esURL := fmt.Sprintf("%s/threats/_doc/%s", esBaseUrl, threat.CVEID)
 
 			cmd := exec.Command("python", "../nlp_service/entity_extractor.py")
@@ -178,6 +180,13 @@ func main() {
 				return
 			}
 			req.Header.Set("Content-Type", "application/json")
+
+			// Inject basic auth from URL if provided
+			if parsedURL, parseErr := url.Parse(esBaseUrl); parseErr == nil && parsedURL.User != nil {
+				if password, ok := parsedURL.User.Password(); ok {
+					req.SetBasicAuth(parsedURL.User.Username(), password)
+				}
+			}
 
 			client := &http.Client{}
 			resp, err := client.Do(req)
