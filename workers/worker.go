@@ -41,6 +41,7 @@ func main() {
 	}
 
 	fmt.Println("Worker connected to Redis. Listening on 'threat_queue'...")
+	fmt.Printf("DEBUG: ELASTICSEARCH_URL configured as: %s\n", os.Getenv("ELASTICSEARCH_URL"))
 
 	var wg sync.WaitGroup
 
@@ -172,6 +173,7 @@ func main() {
 			fmt.Printf("Attack Type:    %s\n", displayAttackType)
 			fmt.Printf("Severity:       %s\n", displaySeverity)
 			fmt.Printf("IOCs:           %+v\n", displayIOCs)
+			fmt.Printf("DEBUG: Sending to ES URL: %s\n", esURL)
 			fmt.Println()
 
 			req, err := http.NewRequest("PUT", esURL, bytes.NewBuffer(enrichedMsg))
@@ -194,14 +196,15 @@ func main() {
 				log.Printf("Error indexing threat to Elasticsearch: %v", err)
 				return
 			}
+			defer resp.Body.Close()
 
+			fmt.Printf("DEBUG: ES Indexing Status: %d (%s)\n", resp.StatusCode, resp.Status)
 			if resp.StatusCode >= 200 && resp.StatusCode < 300 {
 				fmt.Printf("Indexed threat: %s\n", threat.CVEID)
 			} else {
 				respBody, _ := io.ReadAll(resp.Body)
 				log.Printf("Failed to index threat. Status: %s, Response: %s", resp.Status, string(respBody))
 			}
-			resp.Body.Close()
 			}(message)
 		}
 	}
