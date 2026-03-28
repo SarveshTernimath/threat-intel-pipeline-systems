@@ -1,3 +1,4 @@
+import os
 from fastapi import FastAPI, Query, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 import requests
@@ -15,7 +16,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-ES_URL = "http://localhost:9200/threats/_search"
+ELASTICSEARCH_URL = os.getenv("ELASTICSEARCH_URL", "http://localhost:9200")
+ES_URL = f"{ELASTICSEARCH_URL}/threats/_search"
 
 @app.get("/search")
 def search_threats(
