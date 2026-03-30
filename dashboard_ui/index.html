@@ -542,10 +542,11 @@
         }
 
         // Hardcoded requirement endpoint logic
-        const url = new URL(searchType === 'semantic' ? 'http://127.0.0.1:8080/semantic-search' : 'http://127.0.0.1:8080/search');
+        const baseUrl = 'https://threat-intel-pipeline-systems-backend.onrender.com';
+        const url = new URL(searchType === 'semantic' ? `${baseUrl}/semantic-search` : `${baseUrl}/search`);
         
-        // Always append limit=50 as per requirements
-        url.searchParams.append('limit', '50');
+        // Always append limit=10 as per requirements
+        url.searchParams.append('limit', '10');
 
         if (keyword) {
             if (searchType === 'semantic') url.searchParams.append('query', keyword);
