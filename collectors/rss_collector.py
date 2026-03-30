@@ -1,3 +1,4 @@
+import os
 import requests
 import xml.etree.ElementTree as ET
 import json
@@ -7,8 +8,9 @@ import re
 from datetime import datetime
 from email.utils import parsedate_to_datetime
 
-# Initialize native Redis connection matching exactly with existing configurations
-redis_client = redis.Redis(host='localhost', port=6379, db=0)
+# Initialize Redis connection from REDIS_URL env var (Upstash) or fallback to local
+redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
+redis_client = redis.from_url(redis_url)
 
 RSS_FEEDS = [
     "https://feeds.feedburner.com/TheHackersNews",

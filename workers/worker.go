@@ -27,12 +27,22 @@ type ThreatRecord struct {
 func main() {
 	ctx := context.Background()
 
-	// Connect to Redis
-	rdb := redis.NewClient(&redis.Options{
-		Addr:     "localhost:6379",
-		Password: "", // no password set
-		DB:       0,  // use default DB
-	})
+	// Connect to Redis — use REDIS_URL env var (Upstash) or fallback to local
+	redisURL := os.Getenv("REDIS_URL")
+	var rdb *redis.Client
+	if redisURL != "" {
+		opt, err := redis.ParseURL(redisURL)
+		if err != nil {
+			log.Fatalf("Invalid REDIS_URL: %v", err)
+		}
+		rdb = redis.NewClient(opt)
+	} else {
+		rdb = redis.NewClient(&redis.Options{
+			Addr:     "localhost:6379",
+			Password: "",
+			DB:       0,
+		})
+	}
 
 	// Test connection
 	_, err := rdb.Ping(ctx).Result()
@@ -41,7 +51,6 @@ func main() {
 	}
 
 	fmt.Println("Worker connected to Redis. Listening on 'threat_queue'...")
-	fmt.Printf("DEBUG: ELASTICSEARCH_URL configured as: %s\n", os.Getenv("ELASTICSEARCH_URL"))
 
 	var wg sync.WaitGroup
 
@@ -69,12 +78,15 @@ func main() {
 					return
 				}
 
-				esBaseUrl := os.Getenv("ELASTICSEARCH_URL")
-				if esBaseUrl == "" {
-					esBaseUrl = "http://localhost:9200"
+				esURL := os.Getenv("ELASTICSEARCH_URL")
+				if esURL == "" {
+					esURL = "http://localhost:9200"
 				}
-				esBaseUrl = strings.TrimRight(esBaseUrl, "/")
-				esURL := fmt.Sprintf("%s/threats/_doc/%s", esBaseUrl, threat.CVEID)
+				fmt.Println("DEBUG: Using Elasticsearch URL:", esURL)
+
+				esBaseUrl := esURL // Preserve for auth logic
+				tempBase := strings.TrimRight(esURL, "/")
+				esURL = fmt.Sprintf("%s/threats/_doc/%s", tempBase, threat.CVEID)
 
 			cmd := exec.Command("python", "../nlp_service/entity_extractor.py")
 			cmd.Stdin = strings.NewReader(threat.Description)
@@ -173,7 +185,6 @@ func main() {
 			fmt.Printf("Attack Type:    %s\n", displayAttackType)
 			fmt.Printf("Severity:       %s\n", displaySeverity)
 			fmt.Printf("IOCs:           %+v\n", displayIOCs)
-			fmt.Printf("DEBUG: Sending to ES URL: %s\n", esURL)
 			fmt.Println()
 
 			req, err := http.NewRequest("PUT", esURL, bytes.NewBuffer(enrichedMsg))
