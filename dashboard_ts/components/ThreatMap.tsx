@@ -15,7 +15,11 @@ const Globe = dynamic(() => import("react-globe.gl"), {
   )
 });
 
-export default function ThreatMap() {
+interface ThreatMapProps {
+  threats?: any[];
+}
+
+export default function ThreatMap({ threats = [] }: ThreatMapProps) {
   const globeRef = useRef<any>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 800, height: 400 });
@@ -47,17 +51,27 @@ export default function ThreatMap() {
     }
   };
 
-  // Generate random mock arcs mimicking global cyber attacks
+  // Generate dynamic arcs driven by real threats, mocked geographically
   const { arcsData, pointsData } = useMemo(() => {
-    const numArcs = 25;
-    const arcs = [...Array(numArcs).keys()].map(() => ({
-      startLat: (Math.random() - 0.5) * 180,
-      startLng: (Math.random() - 0.5) * 360,
-      endLat: (Math.random() - 0.5) * 180,
-      endLng: (Math.random() - 0.5) * 360,
-      // Cycling through neon reds and warning oranges
-      color: ['#ff0000', '#dc2626', '#f87171', '#ff4444'][Math.floor(Math.random() * 4)] 
-    }));
+    const arcs = threats.map((threat) => {
+      // Map severity: critical -> red, medium -> yellow, low -> green
+      const sev = (threat.severity || "low").toLowerCase();
+      let color = "#22c55e"; // low -> green
+      if (sev === "critical" || sev === "high") {
+        color = "#ef4444"; // critical -> red
+      } else if (sev === "medium") {
+        color = "#eab308"; // medium -> yellow
+      }
+
+      return {
+        // Random spatial distribution within limits (-60 to 60 lat, -180 to 180 lng)
+        startLat: Math.random() * 120 - 60,
+        startLng: Math.random() * 360 - 180,
+        endLat: Math.random() * 120 - 60,
+        endLng: Math.random() * 360 - 180,
+        color
+      };
+    });
 
     // Exploding points at the destination to simulate attack landing zones (glowing points)
     const points = arcs.map(arc => ({
@@ -68,7 +82,7 @@ export default function ThreatMap() {
     }));
 
     return { arcsData: arcs, pointsData: points };
-  }, []);
+  }, [threats]);
 
   return (
     <div 
