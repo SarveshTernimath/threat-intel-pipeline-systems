@@ -1,7 +1,6 @@
 import { Threat } from "@/types";
 
-const BASE_URL =
-  "https://threat-intel-pipeline-systems-backend.onrender.com";
+const BASE_URL = "http://localhost:8000";
 
 export async function searchThreats(keyword: string): Promise<Threat[]> {
   if (!keyword.trim()) return [];

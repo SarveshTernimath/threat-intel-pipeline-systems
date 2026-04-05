@@ -25,6 +25,99 @@ type ThreatRecord struct {
 	PublishedDate string `json:"published_date"`
 }
 
+func riskScoreForSeverity(severity string) int {
+	switch strings.ToLower(strings.TrimSpace(severity)) {
+	case "critical":
+		return 90
+	case "high":
+		return 70
+	case "medium":
+		return 50
+	case "low":
+		return 20
+	default:
+		return 20
+	}
+}
+
+func dedupeKeywordsLower(keywords []string) []string {
+	seen := make(map[string]struct{})
+	out := make([]string, 0, len(keywords))
+	for _, k := range keywords {
+		k = strings.TrimSpace(strings.ToLower(k))
+		if k == "" {
+			continue
+		}
+		if _, ok := seen[k]; ok {
+			continue
+		}
+		seen[k] = struct{}{}
+		out = append(out, k)
+	}
+	return out
+}
+
+// augmentKeywordsFromDescription merges NLP keywords with lightweight text hints (deduped, lowercased).
+func augmentKeywordsFromDescription(descLower string, base []string) []string {
+	kws := append([]string(nil), base...)
+	if strings.Contains(descLower, "sql injection") {
+		kws = append(kws, "sql", "injection")
+	}
+	if strings.Contains(descLower, "xss") || strings.Contains(descLower, "cross-site scripting") {
+		kws = append(kws, "xss")
+	}
+	if strings.Contains(descLower, "rce") || strings.Contains(descLower, "remote code execution") {
+		kws = append(kws, "rce")
+	}
+	if strings.Contains(descLower, "malware") {
+		kws = append(kws, "malware")
+	}
+	if strings.Contains(descLower, "phishing") {
+		kws = append(kws, "phishing")
+	}
+	if strings.Contains(descLower, "ransomware") {
+		kws = append(kws, "ransomware")
+	}
+	if strings.Contains(descLower, "sqli") {
+		kws = append(kws, "sqli")
+	}
+	if strings.Contains(descLower, "csrf") {
+		kws = append(kws, "csrf")
+	}
+	if strings.Contains(descLower, "ssrf") {
+		kws = append(kws, "ssrf")
+	}
+	if strings.Contains(descLower, "buffer overflow") {
+		kws = append(kws, "buffer", "overflow")
+	}
+	if len(kws) == 0 {
+		kws = append(kws, "threat")
+	}
+	return dedupeKeywordsLower(kws)
+}
+
+// enrichAttackTypeFromDescription maps common patterns to pipeline attack_type labels (does not alter Redis/queue payloads).
+func enrichAttackTypeFromDescription(descLower string, fallback string) string {
+	if strings.Contains(descLower, "phishing") {
+		return "phishing"
+	}
+	if strings.Contains(descLower, "sql injection") || strings.Contains(descLower, "sqli") ||
+		(strings.Contains(descLower, "sql") && strings.Contains(descLower, "inject")) {
+		return "injection"
+	}
+	if strings.Contains(descLower, "cross-site scripting") || strings.Contains(descLower, "xss") {
+		return "web attack"
+	}
+	if strings.Contains(descLower, "remote code execution") || strings.Contains(descLower, "remote execution") ||
+		strings.Contains(descLower, "rce") {
+		return "remote execution"
+	}
+	if strings.TrimSpace(fallback) != "" {
+		return fallback
+	}
+	return "unknown"
+}
+
 func main() {
 	ctx := context.Background()
 
@@ -84,161 +177,150 @@ func main() {
 				if esURL == "" {
 					esURL = "http://localhost:9200"
 				}
-				
+
 				esBaseUrl := esURL // Preserve for auth logic
 				tempBase := strings.TrimRight(esURL, "/")
 				esURL = fmt.Sprintf("%s/threats/_doc/%s", tempBase, threat.CVEID)
 
-			cmd := exec.Command("python", "../nlp_service/entity_extractor.py")
-			cmd.Stdin = strings.NewReader(threat.Description)
-			var out bytes.Buffer
-			cmd.Stdout = &out
+				cmd := exec.Command("python", "../nlp_service/entity_extractor.py")
+				cmd.Stdin = strings.NewReader(threat.Description)
+				var out bytes.Buffer
+				cmd.Stdout = &out
 
-			var enrichedMsg []byte = []byte(message)
-			if err := cmd.Run(); err == nil {
-				type IOCs struct {
-					IPs     []string `json:"ips"`
-					Domains []string `json:"domains"`
-					Hashes  []string `json:"hashes"`
-				}
-				var nlpResult struct {
-					Keywords   []string `json:"keywords"`
-					AttackType string   `json:"attack_type"`
-					IOCs       IOCs     `json:"iocs"`
-				}
-				if err := json.Unmarshal(out.Bytes(), &nlpResult); err == nil {
-
-					// Execute Semantic API logic appending the sentence embeddings silently
-					var denseVector []float32
-					cmdEmbed := exec.Command("python", "../nlp_service/embedding_model.py")
-					cmdEmbed.Stdin = strings.NewReader(threat.Description)
-					if outEmbed, err := cmdEmbed.Output(); err == nil {
-						var embedResult struct {
-							Embedding []float32 `json:"embedding"`
-						}
-						// Silently map if successfully produced
-						if json.Unmarshal(outEmbed, &embedResult) == nil {
-							denseVector = embedResult.Embedding
-						}
+				var enrichedMsg []byte = []byte(message)
+				if err := cmd.Run(); err == nil {
+					type IOCs struct {
+						IPs     []string `json:"ips"`
+						Domains []string `json:"domains"`
+						Hashes  []string `json:"hashes"`
 					}
+					var nlpResult struct {
+						Keywords   []string `json:"keywords"`
+						AttackType string   `json:"attack_type"`
+						IOCs       IOCs     `json:"iocs"`
+					}
+					if err := json.Unmarshal(out.Bytes(), &nlpResult); err == nil {
 
-					var threatMap map[string]interface{}
-					if err := json.Unmarshal([]byte(message), &threatMap); err == nil {
-						descLower := strings.ToLower(threat.Description)
-						if strings.Contains(descLower, "sql injection") {
-							nlpResult.Keywords = append(nlpResult.Keywords, "sql", "injection")
-						}
-						if strings.Contains(descLower, "xss") || strings.Contains(descLower, "cross-site scripting") {
-							nlpResult.Keywords = append(nlpResult.Keywords, "xss")
-						}
-						if strings.Contains(descLower, "rce") {
-							nlpResult.Keywords = append(nlpResult.Keywords, "rce")
-						}
-						if strings.Contains(descLower, "malware") {
-							nlpResult.Keywords = append(nlpResult.Keywords, "malware")
-						}
-						if len(nlpResult.Keywords) == 0 {
-							nlpResult.Keywords = append(nlpResult.Keywords, "threat")
-						}
-
-						threatMap["keywords"] = nlpResult.Keywords
-						threatMap["attack_type"] = nlpResult.AttackType
-						threatMap["iocs"] = nlpResult.IOCs
-						
-						// Append AI vector natively
-						if len(denseVector) > 0 {
-							threatMap["embedding"] = denseVector
-						}
-
-						// Calculate severity natively without touching python models
-						severity := "medium"
-						if len(nlpResult.Keywords) == 0 {
-							severity = "low"
-						} else {
-							hasMalware, hasRansomware := false, false
-							for _, kw := range nlpResult.Keywords {
-								if kw == "malware" {
-									hasMalware = true
-								} else if kw == "ransomware" {
-									hasRansomware = true
-								}
+						// Execute Semantic API logic appending the sentence embeddings silently
+						var denseVector []float32
+						cmdEmbed := exec.Command("python", "../nlp_service/embedding_model.py")
+						cmdEmbed.Stdin = strings.NewReader(threat.Description)
+						if outEmbed, err := cmdEmbed.Output(); err == nil {
+							var embedResult struct {
+								Embedding []float32 `json:"embedding"`
 							}
-							
-							for _, kw := range nlpResult.Keywords {
-								if kw == "rce" || kw == "remote code execution" || kw == "sql injection" || (hasMalware && hasRansomware) {
-									severity = "critical"
-								} else if kw == "buffer overflow" && severity != "critical" {
+							// Silently map if successfully produced
+							if json.Unmarshal(outEmbed, &embedResult) == nil {
+								denseVector = embedResult.Embedding
+							}
+						}
+
+						var threatMap map[string]interface{}
+						if err := json.Unmarshal([]byte(message), &threatMap); err == nil {
+							descLower := strings.ToLower(threat.Description)
+							nlpResult.Keywords = augmentKeywordsFromDescription(descLower, nlpResult.Keywords)
+							attackType := enrichAttackTypeFromDescription(descLower, nlpResult.AttackType)
+
+							threatMap["keywords"] = nlpResult.Keywords
+							threatMap["attack_type"] = attackType
+							threatMap["iocs"] = nlpResult.IOCs
+
+							// Append AI vector natively
+							if len(denseVector) > 0 {
+								threatMap["embedding"] = denseVector
+							}
+
+							// Calculate severity natively without touching python models
+							severity := "medium"
+							if len(nlpResult.Keywords) == 0 {
+								severity = "low"
+							} else {
+								hasMalware, hasRansomware := false, false
+								for _, kw := range nlpResult.Keywords {
+									if kw == "malware" {
+										hasMalware = true
+									} else if kw == "ransomware" {
+										hasRansomware = true
+									}
+								}
+								isSQLi := strings.Contains(descLower, "sql injection") || strings.Contains(descLower, "sqli")
+								for _, kw := range nlpResult.Keywords {
+									if kw == "rce" || kw == "remote code execution" || kw == "sql injection" || isSQLi || (hasMalware && hasRansomware) {
+										severity = "critical"
+									} else if kw == "buffer overflow" && severity != "critical" {
+										severity = "high"
+									} else if kw == "xss" && severity != "critical" && severity != "high" {
+										severity = "medium"
+									}
+								}
+								if strings.Contains(descLower, "buffer overflow") && severity != "critical" {
 									severity = "high"
-								} else if kw == "xss" && severity != "critical" && severity != "high" {
-									severity = "medium"
 								}
 							}
-						}
-						threatMap["severity"] = severity
+							threatMap["severity"] = severity
+							threatMap["risk_score"] = riskScoreForSeverity(severity)
 
-						if marshaled, err := json.Marshal(threatMap); err == nil {
-							enrichedMsg = marshaled
+							if marshaled, err := json.Marshal(threatMap); err == nil {
+								enrichedMsg = marshaled
+							}
 						}
 					}
+				} else {
+					log.Printf("NLP script error: %v, Output: %s", err, out.String())
 				}
-			} else {
-				log.Printf("NLP script error: %v, Output: %s", err, out.String())
-			}
 
-
-
-			req, err := http.NewRequest("PUT", esURL, bytes.NewBuffer(enrichedMsg))
-			if err != nil {
-				log.Printf("Error creating ES request: %v", err)
-				return
-			}
-			req.Header.Set("Content-Type", "application/json")
-
-			// Inject basic auth from URL if provided
-			if parsedURL, parseErr := url.Parse(esBaseUrl); parseErr == nil && parsedURL.User != nil {
-				if password, ok := parsedURL.User.Password(); ok {
-					req.SetBasicAuth(parsedURL.User.Username(), password)
+				req, err := http.NewRequest("PUT", esURL, bytes.NewBuffer(enrichedMsg))
+				if err != nil {
+					log.Printf("Error creating ES request: %v", err)
+					return
 				}
-			}
+				req.Header.Set("Content-Type", "application/json")
 
-			client := &http.Client{}
-			
-			// Bypass self-signed SSL verification strictly for local testing to avoid x509 errors
-			if strings.HasPrefix(esBaseUrl, "https://localhost") || strings.HasPrefix(esBaseUrl, "https://127.0.0.1") {
-				client.Transport = &http.Transport{
-					TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+				// Inject basic auth from URL if provided
+				if parsedURL, parseErr := url.Parse(esBaseUrl); parseErr == nil && parsedURL.User != nil {
+					if password, ok := parsedURL.User.Password(); ok {
+						req.SetBasicAuth(parsedURL.User.Username(), password)
+					}
 				}
-			}
-			
-			// PRE-INDEX REACHABILITY CHECK
-			pingReq, _ := http.NewRequest("GET", esBaseUrl, nil)
-			if parsedURL, parseErr := url.Parse(esBaseUrl); parseErr == nil && parsedURL.User != nil {
-				if password, ok := parsedURL.User.Password(); ok {
-					pingReq.SetBasicAuth(parsedURL.User.Username(), password)
+
+				client := &http.Client{}
+
+				// Bypass self-signed SSL verification strictly for local testing to avoid x509 errors
+				if strings.HasPrefix(esBaseUrl, "https://localhost") || strings.HasPrefix(esBaseUrl, "https://127.0.0.1") {
+					client.Transport = &http.Transport{
+						TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+					}
 				}
-			}
-			respPing, errPing := client.Do(pingReq)
-			if errPing != nil {
-				log.Printf("Error: Elasticsearch at %s is unreachable (%v). Request skipped.", esBaseUrl, errPing)
-				return
-			}
-			if respPing != nil {
-				respPing.Body.Close()
-			}
 
-			resp, err := client.Do(req)
-			if err != nil {
-				log.Printf("Error indexing threat to Elasticsearch: %v", err)
-				return
-			}
-			defer resp.Body.Close()
+				// PRE-INDEX REACHABILITY CHECK
+				pingReq, _ := http.NewRequest("GET", esBaseUrl, nil)
+				if parsedURL, parseErr := url.Parse(esBaseUrl); parseErr == nil && parsedURL.User != nil {
+					if password, ok := parsedURL.User.Password(); ok {
+						pingReq.SetBasicAuth(parsedURL.User.Username(), password)
+					}
+				}
+				respPing, errPing := client.Do(pingReq)
+				if errPing != nil {
+					log.Printf("Error: Elasticsearch at %s is unreachable (%v). Request skipped.", esBaseUrl, errPing)
+					return
+				}
+				if respPing != nil {
+					respPing.Body.Close()
+				}
 
-			if resp.StatusCode >= 200 && resp.StatusCode < 300 {
-				log.Printf("Successfully indexed threat: %s", threat.CVEID)
-			} else {
-				respBody, _ := io.ReadAll(resp.Body)
-				log.Printf("Failed to index threat. Status: %s, Response: %s", resp.Status, string(respBody))
-			}
+				resp, err := client.Do(req)
+				if err != nil {
+					log.Printf("Error indexing threat to Elasticsearch: %v", err)
+					return
+				}
+				defer resp.Body.Close()
+
+				if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+					log.Printf("Successfully indexed threat: %s", threat.CVEID)
+				} else {
+					respBody, _ := io.ReadAll(resp.Body)
+					log.Printf("Failed to index threat. Status: %s, Response: %s", resp.Status, string(respBody))
+				}
 			}(message)
 		}
 	}

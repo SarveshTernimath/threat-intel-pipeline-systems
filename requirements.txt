@@ -4,3 +4,4 @@ requests
 redis
 transformers
 torch
+python-dotenv

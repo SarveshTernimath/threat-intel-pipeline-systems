@@ -4,3 +4,4 @@ __pycache__/
 *.pyc
 worker.exe
 workers/worker.exe
+.env

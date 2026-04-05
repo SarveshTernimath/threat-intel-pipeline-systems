@@ -10,9 +10,11 @@ import SkeletonLoader from "@/components/SkeletonLoader";
 import { searchThreats } from "@/services/api";
 import { Threat, Severity } from "@/types";
 
+const DEFAULT_KEYWORD = "attack";
+
 export default function DashboardPage() {
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState<Threat[]>([]);
+  const [threats, setThreats] = useState<Threat[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searched, setSearched] = useState(false);
@@ -28,18 +30,22 @@ export default function DashboardPage() {
 
     try {
       const data = await searchThreats(q);
-      setResults(data);
+      setThreats(data);
     } catch (err: unknown) {
       setError(
         err instanceof Error
           ? err.message
           : "Failed to connect to threat intelligence backend."
       );
-      setResults([]);
+      setThreats([]);
     } finally {
       setIsLoading(false);
     }
   }, []);
+
+  useEffect(() => {
+    void handleSearch(DEFAULT_KEYWORD);
+  }, [handleSearch]);
 
   useEffect(() => {
     if (!searched || !query.trim()) return;
@@ -47,7 +53,7 @@ export default function DashboardPage() {
     const intervalId = setInterval(async () => {
       try {
         const data = await searchThreats(query);
-        setResults(data);
+        setThreats(data);
       } catch (err) {
         // Silently ignore background errors to avoid UX disruption
         console.error("Background refresh failed", err);
@@ -58,25 +64,25 @@ export default function DashboardPage() {
   }, [query, searched]);
 
   const severityCounts = useMemo(() => {
-    return results.reduce<Record<string, number>>((acc, t) => {
+    return threats.reduce<Record<string, number>>((acc, t) => {
       const s = (t.severity || "unknown").toLowerCase();
       acc[s] = (acc[s] ?? 0) + 1;
       return acc;
     }, {});
-  }, [results]);
+  }, [threats]);
 
   const filteredResults = useMemo(() => {
-    if (severityFilter === "all") return results;
-    return results.filter(
+    if (severityFilter === "all") return threats;
+    return threats.filter(
       (t) => (t.severity || "unknown").toLowerCase() === severityFilter
     );
-  }, [results, severityFilter]);
+  }, [threats, severityFilter]);
 
   const stats = [
-    { label: "Total Threats", value: results.length, icon: Database, color: "text-red-400" },
+    { label: "Total Threats", value: threats.length, icon: Database, color: "text-red-400" },
     { label: "Critical",      value: severityCounts.critical ?? 0, icon: Shield,   color: "text-red-500" },
     { label: "High",          value: severityCounts.high ?? 0,     icon: Activity, color: "text-orange-400" },
-    { label: "Sources",       value: [...new Set(results.map((r) => r.source))].length, icon: Terminal, color: "text-gray-400" },
+    { label: "Sources",       value: [...new Set(threats.map((r) => r.source))].length, icon: Terminal, color: "text-gray-400" },
   ];
 
   return (
@@ -164,7 +170,7 @@ export default function DashboardPage() {
             <SkeletonLoader />
           ) : (
             <div className="space-y-8">
-              <ThreatMap threats={filteredResults} />
+              <ThreatMap threats={threats} />
               <ThreatTable
                 threats={filteredResults}
                 isLoading={isLoading}
