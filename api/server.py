@@ -16,15 +16,34 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-ELASTICSEARCH_URL = os.getenv("ELASTICSEARCH_URL", "http://localhost:9200")
-ES_URL = f"{ELASTICSEARCH_URL}/threats/_search"
+# Parse Elasticsearch URL securely to handle both Cloud and Local connections
+RAW_ES_URL = os.getenv("ELASTICSEARCH_URL", "http://localhost:9200").rstrip("/")
+parsed_url = __import__("urllib.parse").parse.urlparse(RAW_ES_URL)
+
+REQ_KWARGS = {}
+if parsed_url.username and parsed_url.password:
+    REQ_KWARGS["auth"] = (parsed_url.username, parsed_url.password)
+    safe_netloc = parsed_url.hostname
+    if parsed_url.port:
+        safe_netloc += f":{parsed_url.port}"
+    clean_es_url = parsed_url._replace(netloc=safe_netloc).geturl()
+else:
+    clean_es_url = RAW_ES_URL
+
+# Bypass self-signed SSL verification strictly for local testing to avoid crashes
+if clean_es_url.startswith("https://localhost") or clean_es_url.startswith("https://127.0.0.1"):
+    import urllib3
+    urllib3.disable_warnings()
+    REQ_KWARGS["verify"] = False
+
+ES_INDEX_URL = f"{clean_es_url}/threats"
+ES_URL = f"{ES_INDEX_URL}/_search"
 
 @app.on_event("startup")
 def ensure_index():
-    index_url = f"{ELASTICSEARCH_URL}/threats"
     try:
-        if requests.head(index_url).status_code == 404:
-            requests.put(index_url)
+        if requests.head(ES_INDEX_URL, **REQ_KWARGS).status_code == 404:
+            requests.put(ES_INDEX_URL, **REQ_KWARGS)
     except Exception as e:
         print(f"Startup index check failed: {e}")
 
@@ -50,14 +69,13 @@ def search_threats(
     if not keyword and not severity:
         must_clauses.append({"match_all": {}})
         
-    # Append query_string for case-insensitive partial wildcard text search across both blocks
+    # Append multi_match for OR-based search across multiple fields
     if keyword:
-        # Sanitize potentially breaking manual char queries
-        safe_kw = keyword.replace('"', '').replace('\\', '').replace('/', '')
         must_clauses.append({
-            "query_string": {
-                "query": f"*{safe_kw}*",
-                "fields": ["description", "keywords"]
+            "multi_match": {
+                "query": keyword,
+                "fields": ["description", "keywords", "attack_type"],
+                "operator": "or"
             }
         })
         
@@ -70,8 +88,8 @@ def search_threats(
         })
         
     try:
-        # Posing query natively via Elasticsearch REST API
-        response = requests.get(ES_URL, json=es_query)
+        # Posing query natively via Elasticsearch REST API with correct Auth/SSL kwargs
+        response = requests.get(ES_URL, json=es_query, **REQ_KWARGS)
         response.raise_for_status()
         data = response.json()
         
@@ -128,7 +146,7 @@ def semantic_search(
             }
         }
             
-        response = requests.get(ES_URL, json=es_query)
+        response = requests.get(ES_URL, json=es_query, **REQ_KWARGS)
         response.raise_for_status()
         data = response.json()
         

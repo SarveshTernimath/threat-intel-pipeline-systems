@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -79,11 +80,11 @@ func main() {
 				}
 
 				esURL := os.Getenv("ELASTICSEARCH_URL")
+				esURL = strings.TrimSpace(esURL)
 				if esURL == "" {
 					esURL = "http://localhost:9200"
 				}
-				fmt.Println("DEBUG: Using Elasticsearch URL:", esURL)
-
+				
 				esBaseUrl := esURL // Preserve for auth logic
 				tempBase := strings.TrimRight(esURL, "/")
 				esURL = fmt.Sprintf("%s/threats/_doc/%s", tempBase, threat.CVEID)
@@ -94,11 +95,6 @@ func main() {
 			cmd.Stdout = &out
 
 			var enrichedMsg []byte = []byte(message)
-			var displayKeywords []string
-			var displayAttackType string
-			displaySeverity := "unknown"
-			var displayIOCs interface{}
-
 			if err := cmd.Run(); err == nil {
 				type IOCs struct {
 					IPs     []string `json:"ips"`
@@ -111,9 +107,6 @@ func main() {
 					IOCs       IOCs     `json:"iocs"`
 				}
 				if err := json.Unmarshal(out.Bytes(), &nlpResult); err == nil {
-					displayKeywords = nlpResult.Keywords
-					displayAttackType = nlpResult.AttackType
-					displayIOCs = nlpResult.IOCs
 
 					// Execute Semantic API logic appending the sentence embeddings silently
 					var denseVector []float32
@@ -131,6 +124,23 @@ func main() {
 
 					var threatMap map[string]interface{}
 					if err := json.Unmarshal([]byte(message), &threatMap); err == nil {
+						descLower := strings.ToLower(threat.Description)
+						if strings.Contains(descLower, "sql injection") {
+							nlpResult.Keywords = append(nlpResult.Keywords, "sql", "injection")
+						}
+						if strings.Contains(descLower, "xss") || strings.Contains(descLower, "cross-site scripting") {
+							nlpResult.Keywords = append(nlpResult.Keywords, "xss")
+						}
+						if strings.Contains(descLower, "rce") {
+							nlpResult.Keywords = append(nlpResult.Keywords, "rce")
+						}
+						if strings.Contains(descLower, "malware") {
+							nlpResult.Keywords = append(nlpResult.Keywords, "malware")
+						}
+						if len(nlpResult.Keywords) == 0 {
+							nlpResult.Keywords = append(nlpResult.Keywords, "threat")
+						}
+
 						threatMap["keywords"] = nlpResult.Keywords
 						threatMap["attack_type"] = nlpResult.AttackType
 						threatMap["iocs"] = nlpResult.IOCs
@@ -164,7 +174,6 @@ func main() {
 								}
 							}
 						}
-						displaySeverity = severity
 						threatMap["severity"] = severity
 
 						if marshaled, err := json.Marshal(threatMap); err == nil {
@@ -176,16 +185,7 @@ func main() {
 				log.Printf("NLP script error: %v, Output: %s", err, out.String())
 			}
 
-			fmt.Printf("--- New Threat Record ---\n")
-			fmt.Printf("Source:         %s\n", threat.Source)
-			fmt.Printf("CVE ID:         %s\n", threat.CVEID)
-			fmt.Printf("Description:    %s\n", threat.Description)
-			fmt.Printf("Published Date: %s\n", threat.PublishedDate)
-			fmt.Printf("Keywords:       %v\n", displayKeywords)
-			fmt.Printf("Attack Type:    %s\n", displayAttackType)
-			fmt.Printf("Severity:       %s\n", displaySeverity)
-			fmt.Printf("IOCs:           %+v\n", displayIOCs)
-			fmt.Println()
+
 
 			req, err := http.NewRequest("PUT", esURL, bytes.NewBuffer(enrichedMsg))
 			if err != nil {
@@ -202,6 +202,30 @@ func main() {
 			}
 
 			client := &http.Client{}
+			
+			// Bypass self-signed SSL verification strictly for local testing to avoid x509 errors
+			if strings.HasPrefix(esBaseUrl, "https://localhost") || strings.HasPrefix(esBaseUrl, "https://127.0.0.1") {
+				client.Transport = &http.Transport{
+					TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+				}
+			}
+			
+			// PRE-INDEX REACHABILITY CHECK
+			pingReq, _ := http.NewRequest("GET", esBaseUrl, nil)
+			if parsedURL, parseErr := url.Parse(esBaseUrl); parseErr == nil && parsedURL.User != nil {
+				if password, ok := parsedURL.User.Password(); ok {
+					pingReq.SetBasicAuth(parsedURL.User.Username(), password)
+				}
+			}
+			respPing, errPing := client.Do(pingReq)
+			if errPing != nil {
+				log.Printf("Error: Elasticsearch at %s is unreachable (%v). Request skipped.", esBaseUrl, errPing)
+				return
+			}
+			if respPing != nil {
+				respPing.Body.Close()
+			}
+
 			resp, err := client.Do(req)
 			if err != nil {
 				log.Printf("Error indexing threat to Elasticsearch: %v", err)
@@ -209,9 +233,8 @@ func main() {
 			}
 			defer resp.Body.Close()
 
-			fmt.Printf("DEBUG: ES Indexing Status: %d (%s)\n", resp.StatusCode, resp.Status)
 			if resp.StatusCode >= 200 && resp.StatusCode < 300 {
-				fmt.Printf("Indexed threat: %s\n", threat.CVEID)
+				log.Printf("Successfully indexed threat: %s", threat.CVEID)
 			} else {
 				respBody, _ := io.ReadAll(resp.Body)
 				log.Printf("Failed to index threat. Status: %s, Response: %s", resp.Status, string(respBody))

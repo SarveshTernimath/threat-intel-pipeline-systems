@@ -14,46 +14,70 @@ def fetch_otx_pulses():
     and normalizes them into the pipeline's exact CVE JSON schema.
     """
     url = "https://otx.alienvault.com/api/v1/pulses/activity"
-    params = {"limit": 10}
     headers = {"User-Agent": "Threat-Intel-Pipeline-Collector"}
+    otx_api_key = os.getenv("OTX_API_KEY")
+    if otx_api_key:
+        headers["X-OTX-API-KEY"] = otx_api_key
     
-    try:
-        response = requests.get(url, params=params, headers=headers)
-        response.raise_for_status()
-        data = response.json()
-        
-        pulses = data.get("results", [])
-        
-        for pulse in pulses:
-            # Map native OTX pulse IDs into identical generic structured ID namespaces
-            cve_id = f"OTX-{pulse.get('id', 'Unknown')}"
+    for page in range(1, 4):  # Loop max 3 pages
+        params = {"limit": 50, "page": page}
+        try:
+            response = requests.get(url, params=params, headers=headers)
+            response.raise_for_status()
+            data = response.json()
             
-            description = pulse.get("description", "")
-            if not description:
-                description = pulse.get("name", "No description available")
+            pulses = data.get("results", [])
+            if not pulses:
+                break
+            
+            for pulse in pulses:
+                # Map native OTX pulse IDs into identical generic structured ID namespaces
+                cve_id = f"OTX-{pulse.get('id', 'Unknown')}"
                 
-            published_date_full = pulse.get("created", "")
-            published_date = published_date_full.split("T")[0] if "T" in published_date_full else published_date_full
-            
-            # Format payload identically to NVD to prevent worker breakdown
-            normalized_cve = {
-                "source": "OTX",
-                "cve_id": cve_id,
-                "description": description,
-                "published_date": published_date,
-                "is_recent": True # Current activity implicitly flagged as recent feed flow
-            }
-            
-            cve_json = json.dumps(normalized_cve)
-            
-            try:
-                redis_client.rpush('threat_queue', cve_json)
-                print(f"Pushed {cve_id} safely to Redis threat_queue")
-            except redis.RedisError as re:
-                print(f"Redis pipeline error: {re}")
+                description = pulse.get("description", "")
+                if not description:
+                    description = pulse.get("name", "No description available")
+                    
+                published_date_full = pulse.get("created", "")
+                published_date = published_date_full.split("T")[0] if "T" in published_date_full else published_date_full
                 
-    except requests.exceptions.RequestException as e:
-        print(f"Critically failed fetching data from AlienVault OTX API: {e}")
+                tags = pulse.get("tags", [])
+                keywords = tags if tags else ["threat"]
+                
+                lower_kws = [str(k).lower() for k in keywords]
+                severity = "low"
+                if "ransomware" in lower_kws:
+                    severity = "critical"
+                elif "rce" in lower_kws:
+                    severity = "critical"
+                elif "malware" in lower_kws:
+                    severity = "medium"
+                
+                # Format payload identically to NVD to prevent worker breakdown
+                normalized_cve = {
+                    "source": "OTX",
+                    "cve_id": cve_id,
+                    "description": description,
+                    "published_date": published_date,
+                    "keywords": keywords,
+                    "severity": severity,
+                    "is_recent": True # Current activity implicitly flagged as recent feed flow
+                }
+                
+                cve_json = json.dumps(normalized_cve)
+                
+                try:
+                    redis_client.rpush('threat_queue', cve_json)
+                    print(f"Pushed {cve_id} safely to Redis threat_queue")
+                except redis.RedisError as re:
+                    print(f"Redis pipeline error: {re}")
+                    
+            if not data.get("next"):
+                break
+                
+        except requests.exceptions.RequestException as e:
+            print(f"Critically failed fetching data on page {page} from AlienVault OTX API: {e}")
+            break
 
 if __name__ == "__main__":
     fetch_otx_pulses()

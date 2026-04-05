@@ -3,8 +3,11 @@ import json
 import redis
 from datetime import datetime, timedelta, timezone
 
-# Initialize Redis connection
-redis_client = redis.Redis(host='localhost', port=6379, db=0)
+import os
+
+# Initialize Redis connection from REDIS_URL env var (Upstash) or fallback to local
+redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
+redis_client = redis.from_url(redis_url)
 
 def fetch_nvd_data():
     url = "https://services.nvd.nist.gov/rest/json/cves/2.0"
@@ -16,7 +19,7 @@ def fetch_nvd_data():
     end_str = end_date.strftime("%Y-%m-%dT%H:%M:%S.000")
     
     params = {
-        "resultsPerPage": 5,
+        "resultsPerPage": 50,
         "lastModStartDate": start_str,
         "lastModEndDate": end_str
     }
@@ -46,6 +49,11 @@ def fetch_nvd_data():
             is_recent = False
             try:
                 pub_dt = datetime.strptime(published_date, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+                
+                # Process only vulnerabilities published within the last 7 days
+                if pub_dt < (end_date - timedelta(days=7)):
+                    continue
+                
                 if pub_dt >= start_date:
                     is_recent = True
             except ValueError:
