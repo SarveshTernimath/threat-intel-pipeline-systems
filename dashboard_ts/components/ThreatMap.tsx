@@ -53,22 +53,27 @@ export default function ThreatMap({ threats = [] }: ThreatMapProps) {
 
   // Generate dynamic arcs driven by real threats, mocked geographically
   const { arcsData, pointsData } = useMemo(() => {
-    const arcs = threats.map((threat) => {
-      // Map severity: critical -> red, medium -> yellow, low -> green
+    if (!threats || threats.length === 0) {
+      return { arcsData: [], pointsData: [] };
+    }
+
+    const arcs = threats.map((threat, index) => {
+      // Map severity: critical -> red, high -> orange, medium -> yellow, low -> green
       const sev = (threat.severity || "low").toLowerCase();
       let color = "#22c55e"; // low -> green
-      if (sev === "critical" || sev === "high") {
-        color = "#ef4444"; // critical -> red
+      if (sev === "critical") {
+        color = "#ef4444"; // red
+      } else if (sev === "high") {
+        color = "#f97316"; // orange
       } else if (sev === "medium") {
-        color = "#eab308"; // medium -> yellow
+        color = "#eab308"; // yellow
       }
 
       return {
-        // Random spatial distribution within limits (-60 to 60 lat, -180 to 180 lng)
-        startLat: Math.random() * 120 - 60,
-        startLng: Math.random() * 360 - 180,
-        endLat: Math.random() * 120 - 60,
-        endLng: Math.random() * 360 - 180,
+        startLat: (index * 37) % 120 - 60,
+        startLng: (index * 53) % 360 - 180,
+        endLat: ((index + 7) * 37) % 120 - 60,
+        endLng: ((index + 7) * 53) % 360 - 180,
         color
       };
     });
