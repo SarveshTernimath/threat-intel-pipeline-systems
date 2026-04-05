@@ -5,10 +5,8 @@ from datetime import datetime, timedelta, timezone
 
 import os
 
-# Initialize Redis connection strictly from REDIS_URL env var (Upstash/Cloud)
-redis_url = os.environ.get("REDIS_URL")
-if not redis_url:
-    raise ValueError("CRITICAL ERROR: REDIS_URL environment variable is missing. Collectors must push securely to Cloud Redis.")
+# Initialize Redis connection from REDIS_URL env var (Upstash) or fallback to local
+redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
 redis_client = redis.from_url(redis_url)
 
 def fetch_nvd_data():
