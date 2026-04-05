@@ -164,7 +164,7 @@ export default function DashboardPage() {
             <SkeletonLoader />
           ) : (
             <div className="space-y-8">
-              <ThreatMap />
+              <ThreatMap threats={filteredResults} />
               <ThreatTable
                 threats={filteredResults}
                 isLoading={isLoading}
