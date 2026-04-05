@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useEffect } from "react";
 import { Shield, Terminal, Activity, Database } from "lucide-react";
 import SearchBar from "@/components/SearchBar";
 import SeverityFilter from "@/components/SeverityFilter";
 import ThreatTable from "@/components/ThreatTable";
+import ThreatMap from "@/components/ThreatMap";
 import SkeletonLoader from "@/components/SkeletonLoader";
 import { searchThreats } from "@/services/api";
 import { Threat, Severity } from "@/types";
@@ -39,6 +40,22 @@ export default function DashboardPage() {
       setIsLoading(false);
     }
   }, []);
+
+  useEffect(() => {
+    if (!searched || !query.trim()) return;
+
+    const intervalId = setInterval(async () => {
+      try {
+        const data = await searchThreats(query);
+        setResults(data);
+      } catch (err) {
+        // Silently ignore background errors to avoid UX disruption
+        console.error("Background refresh failed", err);
+      }
+    }, 10000);
+
+    return () => clearInterval(intervalId);
+  }, [query, searched]);
 
   const severityCounts = useMemo(() => {
     return results.reduce<Record<string, number>>((acc, t) => {
@@ -146,12 +163,15 @@ export default function DashboardPage() {
           {isLoading ? (
             <SkeletonLoader />
           ) : (
-            <ThreatTable
-              threats={filteredResults}
-              isLoading={isLoading}
-              error={error}
-              searched={searched}
-            />
+            <div className="space-y-8">
+              <ThreatMap />
+              <ThreatTable
+                threats={filteredResults}
+                isLoading={isLoading}
+                error={error}
+                searched={searched}
+              />
+            </div>
           )}
         </div>
 
