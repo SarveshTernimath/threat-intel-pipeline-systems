@@ -42,6 +42,11 @@ if clean_es_url.startswith("https://localhost") or clean_es_url.startswith("http
 ES_INDEX_URL = f"{clean_es_url}/threats"
 ES_URL = f"{ES_INDEX_URL}/_search"
 
+@app.get("/")
+@app.head("/")
+def health_check():
+    return {"status": "live", "service": "threat-intel-pipeline-systems"}
+
 @app.on_event("startup")
 def ensure_index():
     try:
