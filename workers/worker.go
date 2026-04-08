@@ -8,12 +8,15 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
 	"os/exec"
+	"regexp"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/redis/go-redis/v9"
 )
@@ -23,6 +26,77 @@ type ThreatRecord struct {
 	CVEID         string `json:"cve_id"`
 	Description   string `json:"description"`
 	PublishedDate string `json:"published_date"`
+}
+
+var (
+	ipRegex  = regexp.MustCompile(`\b(?:\d{1,3}\.){3}\d{1,3}\b`)
+	cveRegex = regexp.MustCompile(`\bCVE-\d{4}-\d{4,7}\b`)
+	domRegex = regexp.MustCompile(`\b[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\b`)
+)
+
+func extractIndicators(text string) []string {
+	seen := make(map[string]struct{})
+	out := make([]string, 0, 32)
+	add := func(v string) {
+		v = strings.TrimSpace(v)
+		if v == "" {
+			return
+		}
+		if _, ok := seen[v]; ok {
+			return
+		}
+		seen[v] = struct{}{}
+		out = append(out, v)
+	}
+
+	for _, m := range cveRegex.FindAllString(text, -1) {
+		add(m)
+	}
+	for _, m := range ipRegex.FindAllString(text, -1) {
+		add(m)
+	}
+	for _, m := range domRegex.FindAllString(text, -1) {
+		m = strings.Trim(m, ".,;:()[]{}<>\"'")
+		if strings.Count(m, ".") >= 1 && !strings.Contains(m, "..") {
+			add(m)
+		}
+	}
+	return out
+}
+
+type ipAPIResponse struct {
+	Status  string  `json:"status"`
+	Country string  `json:"country"`
+	Lat     float64 `json:"lat"`
+	Lon     float64 `json:"lon"`
+}
+
+func enrichGeoFromIP(ip string) (lat float64, lon float64, country string, ok bool) {
+	ip = strings.TrimSpace(ip)
+	if ip == "" {
+		return 0, 0, "", false
+	}
+	client := &http.Client{Timeout: 3 * time.Second}
+	req, err := http.NewRequest("GET", fmt.Sprintf("http://ip-api.com/json/%s", ip), nil)
+	if err != nil {
+		return 0, 0, "", false
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return 0, 0, "", false
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		return 0, 0, "", false
+	}
+	var parsed ipAPIResponse
+	if err := json.NewDecoder(resp.Body).Decode(&parsed); err != nil {
+		return 0, 0, "", false
+	}
+	if strings.ToLower(parsed.Status) != "success" {
+		return 0, 0, "", false
+	}
+	return parsed.Lat, parsed.Lon, parsed.Country, true
 }
 
 func riskScoreForSeverity(severity string) int {
@@ -138,10 +212,14 @@ func main() {
 		})
 	}
 
-	// Test connection
-	_, err := rdb.Ping(ctx).Result()
-	if err != nil {
-		log.Fatalf("Could not connect to Redis: %v", err)
+	// Test connection with robust retry to handle network drops cleanly
+	for {
+		_, err := rdb.Ping(ctx).Result()
+		if err == nil {
+			break
+		}
+		log.Printf("Could not connect to Redis (%v). Retrying in 5 seconds...", err)
+		time.Sleep(5 * time.Second)
 	}
 
 	fmt.Println("Worker connected to Redis. Listening on 'threat_queue'...")
@@ -152,7 +230,8 @@ func main() {
 		// BLPOP on threat_queue with 0 timeout (block indefinitely)
 		result, err := rdb.BLPop(ctx, 0, "threat_queue").Result()
 		if err != nil {
-			log.Printf("Error reading from Redis: %v", err)
+			log.Printf("Error reading from Redis: %v. Retrying in 5 seconds...", err)
+			time.Sleep(5 * time.Second)
 			continue
 		}
 
@@ -180,7 +259,9 @@ func main() {
 
 				esBaseUrl := esURL // Preserve for auth logic
 				tempBase := strings.TrimRight(esURL, "/")
-				esURL = fmt.Sprintf("%s/threats/_doc/%s", tempBase, threat.CVEID)
+				// Prevent overwrite by guaranteeing a unique doc id (original_id + timestamp)
+				docID := fmt.Sprintf("%s-%d", threat.CVEID, time.Now().UnixMilli())
+				esURL = fmt.Sprintf("%s/threats/_doc/%s", tempBase, docID)
 
 				cmd := exec.Command("python", "../nlp_service/entity_extractor.py")
 				cmd.Stdin = strings.NewReader(threat.Description)
@@ -190,9 +271,10 @@ func main() {
 				var enrichedMsg []byte = []byte(message)
 				if err := cmd.Run(); err == nil {
 					type IOCs struct {
-						IPs     []string `json:"ips"`
-						Domains []string `json:"domains"`
-						Hashes  []string `json:"hashes"`
+						IPs         []string      `json:"ips"`
+						EnrichedIPs []interface{} `json:"enriched_ips"`
+						Domains     []string      `json:"domains"`
+						Hashes      []string      `json:"hashes"`
 					}
 					var nlpResult struct {
 						Keywords   []string `json:"keywords"`
@@ -223,6 +305,21 @@ func main() {
 
 							threatMap["keywords"] = nlpResult.Keywords
 							threatMap["attack_type"] = attackType
+							threatMap["iocs"] = nlpResult.IOCs
+							indicators := extractIndicators(threat.Description)
+							threatMap["indicators"] = indicators
+
+							for _, indicator := range indicators {
+								parsedIP := net.ParseIP(indicator)
+								if parsedIP != nil {
+									nlpResult.IOCs.IPs = append(nlpResult.IOCs.IPs, indicator)
+								} else if domRegex.MatchString(indicator) {
+									resolvedIPs, err := net.LookupIP(indicator)
+									if err == nil && len(resolvedIPs) > 0 {
+										nlpResult.IOCs.IPs = append(nlpResult.IOCs.IPs, resolvedIPs[0].String())
+									}
+								}
+							}
 							threatMap["iocs"] = nlpResult.IOCs
 
 							// Append AI vector natively
@@ -259,6 +356,15 @@ func main() {
 							}
 							threatMap["severity"] = severity
 							threatMap["risk_score"] = riskScoreForSeverity(severity)
+
+							// REAL Geo enrichment (no mock): only if we have a valid IP in iocs.ips
+							if len(nlpResult.IOCs.IPs) > 0 {
+								if lat, lon, country, okGeo := enrichGeoFromIP(nlpResult.IOCs.IPs[0]); okGeo {
+									threatMap["lat"] = lat
+									threatMap["lng"] = lon
+									threatMap["country"] = country
+								}
+							}
 
 							if marshaled, err := json.Marshal(threatMap); err == nil {
 								enrichedMsg = marshaled

@@ -1,0 +1,37 @@
+{
+  "attack_type": "remote execution",
+  "cve_id": "CVE-2024-TEST-001",
+  "description": "Critical RCE vulnerability CVE-2024-99999 exploiting buffer overflow on 8.8.8.8 and evil-domain.com used in ransomware campaign",
+  "iocs": {
+    "ips": [
+      "8.8.8.8"
+    ],
+    "enriched_ips": [
+      {
+        "geo": {
+          "city": "Ashburn",
+          "country": "United States",
+          "lat": 39.03,
+          "lon": -77.5,
+          "org": "Google Public DNS"
+        },
+        "ip": "8.8.8.8"
+      }
+    ],
+    "domains": [
+      "evil-domain.com"
+    ],
+    "hashes": []
+  },
+  "keywords": [
+    "buffer overflow",
+    "rce",
+    "ransomware",
+    "buffer",
+    "overflow"
+  ],
+  "published_date": "2026-04-07",
+  "risk_score": 90,
+  "severity": "critical",
+  "source": "TEST"
+}

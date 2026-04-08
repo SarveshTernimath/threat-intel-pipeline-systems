@@ -1,59 +1,125 @@
+import os
+import time
 import requests
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from dotenv import load_dotenv
 
-WEBHOOK_URL = "https://webhook.site/937d7096-0871-4fd7-9345-5418ba55159b"
+# Load environment variables
+load_dotenv(os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env'))
 
-def run_alert_engine():
+SMTP_HOST = os.getenv("SMTP_HOST", "smtp.gmail.com")
+SMTP_PORT = int(os.getenv("SMTP_PORT", 587))
+SMTP_USER = os.getenv("SMTP_USER")
+SMTP_PASS = os.getenv("SMTP_PASS")
+ALERT_TO = os.getenv("ALERT_TO")
+
+# In-memory memory caching of sent alerts
+sent_cve_ids = set()
+
+def send_email_alert(hit):
+    """Sends a formatted email alert via SMTP for a critical threat."""
+    if not (SMTP_USER and SMTP_PASS and ALERT_TO):
+        print("SMTP Credentials not configured. Cannot send email.")
+        return False
+
+    source_data = hit.get("_source", {})
+    cve_id = source_data.get("cve_id", "Unknown CVE")
+    description = source_data.get("description", "No description provided.")
+    severity = source_data.get("severity", "critical")
+    source = source_data.get("source", "Unknown")
+
+    subject = f"CRITICAL THREAT ALERT: {cve_id}"
+    body = f"""A new critical threat has been registered in the pipeline:
+
+CVE ID: {cve_id}
+Severity: {severity.upper()}
+Source: {source}
+
+Description:
+{description}
+
+-- Threat Intel Pipeline
+"""
+
+    msg = MIMEMultipart()
+    msg['From'] = SMTP_USER
+    msg['To'] = ALERT_TO
+    msg['Subject'] = subject
+    msg.attach(MIMEText(body, 'plain'))
+
+    try:
+        server = smtplib.SMTP(SMTP_HOST, SMTP_PORT)
+        server.starttls()
+        server.login(SMTP_USER, SMTP_PASS)
+        server.send_message(msg)
+        server.quit()
+        print(f"[SUCCESS] Email alert sent for {cve_id}")
+        return True
+    except Exception as e:
+        print(f"[ERROR] Failed to send email alert for {cve_id}: {e}")
+        return False
+
+def run_alert_engine(initial_boot=False):
     """
-    Queries Elasticsearch for any threats that have been classified 
-    as 'critical' severity and prints a formatted alert to the console.
+    Queries Elasticsearch for any new threats classified as 'critical' 
+    and triggers SMTP email alerts. Loop logic is maintained by caller.
     """
     es_url = "http://localhost:9200/threats/_search"
     
-    # Query to fetch all records explicitly tagged with critical severity
+    # Query to fetch all records tagged with critical severity, sort by date
     query = {
         "query": {
             "match": {
                 "severity": "critical"
             }
         },
-        "size": 100
+        "size": 50,
+        "sort": [{"published_date": {"order": "desc", "unmapped_type": "date"}}]
     }
     
     try:
-        response = requests.get(es_url, json=query)
+        response = requests.get(es_url, json=query, timeout=5)
         response.raise_for_status()
         data = response.json()
         
         hits = data.get("hits", {}).get("hits", [])
-        if not hits:
-            print("System Scan: No critical threats currently detected.")
-            return
-
-        # Iterate over matches and print the requested alert string
+        
+        new_criticals_found = False
+        
         for hit in hits:
             source = hit.get("_source", {})
             cve_id = source.get("cve_id", "Unknown CVE")
-            description = source.get("description", "No description provided.")
             
-            print(f"[ALERT] Critical threat detected: {cve_id} - {description}")
-            
-            # Asset Profile Filtering natively restricting Webhooks strictly to designated systems
-            desc_lower = description.lower()
-            if any(term in desc_lower for term in ["nginx", "apache", "windows"]):
-                webhook_payload = {
-                    "text": "[ALERT] Critical Threat Detected",
-                    "cve_id": cve_id,
-                    "description": description,
-                    "severity": "critical"
-                }
-                try:
-                    # Fire Webhook HTTP integration with strict timeouts preventing blocking crashes
-                    requests.post(WEBHOOK_URL, json=webhook_payload, timeout=5)
-                except Exception as alert_err:
-                    print(f"Non-fatal Webhook dispatch failure safely bypassed: {alert_err}")
+            # Avoid duplicate emails
+            if cve_id not in sent_cve_ids:
+                new_criticals_found = True
+                
+                if not initial_boot:
+                    print(f"[ALERT] New critical threat detected: {cve_id}")
+                    success = send_email_alert(hit)
+                else:
+                    print(f"[BOOT] Loaded existing critical threat into memory: {cve_id}")
+                
+                # We record it as sent regardless
+                sent_cve_ids.add(cve_id)
+                
+        if not new_criticals_found and not initial_boot:
+             print("System Scan: No new critical threats detected at this time.")
             
     except requests.exceptions.RequestException as e:
-        print(f"Failed to connect or query Elasticsearch: {e}")
+        print(f"[ERROR] Failed to connect or query Elasticsearch: {e}")
 
 if __name__ == "__main__":
-    run_alert_engine()
+    print("Starting Threat Alert Service (SMTP Enabled)...")
+    
+    # Do an initial silent pass to load existing threats into memory and avoid spam
+    print("Performing initial memory load to prevent historic spam...")
+    run_alert_engine(initial_boot=True)
+    
+    print("Entering 60s polling loop. Press Ctrl+C to stop.")
+    while True:
+        time.sleep(60)
+        run_alert_engine(initial_boot=False)
+

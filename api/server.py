@@ -55,7 +55,7 @@ def search_threats(
 ):
     # Base Elasticsearch query structure
     es_query = {
-        "size": limit,
+        "size": 100,
         "query": {
             "bool": {
                 "must": []
@@ -115,6 +115,51 @@ def search_threats(
             status_code=500, 
             detail=f"Elasticsearch query critically failed: {str(e)}"
         )
+
+@app.get("/geo-threats")
+def geo_threats(limit: int = Query(50, description="Max geo-tagged threats to return")):
+    """Return all threats that have real lat/lng coordinates from worker geo-enrichment."""
+    es_query = {
+        "size": limit,
+        "query": {
+            "bool": {
+                "must": [
+                    {"exists": {"field": "lat"}},
+                    {"exists": {"field": "lng"}}
+                ]
+            }
+        },
+        "_source": [
+            "cve_id", "description", "source", "published_date",
+            "severity", "keywords", "attack_type", "iocs",
+            "lat", "lng", "country", "risk_score", "indicators"
+        ]
+    }
+    try:
+        response = requests.get(ES_URL, json=es_query, **REQ_KWARGS)
+        response.raise_for_status()
+        data = response.json()
+        results = []
+        for hit in data.get("hits", {}).get("hits", []):
+            source = hit.get("_source", {})
+            results.append({
+                "cve_id": source.get("cve_id", "Unknown"),
+                "description": source.get("description", ""),
+                "source": source.get("source", ""),
+                "published_date": source.get("published_date", ""),
+                "severity": source.get("severity", "unknown"),
+                "keywords": source.get("keywords", []),
+                "attack_type": source.get("attack_type", "Unknown"),
+                "iocs": source.get("iocs", {}),
+                "lat": source.get("lat"),
+                "lng": source.get("lng"),
+                "country": source.get("country", ""),
+                "risk_score": source.get("risk_score", 0),
+                "indicators": source.get("indicators", []),
+            })
+        return results
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Geo threats query failed: {str(e)}")
 
 @app.get("/semantic-search")
 def semantic_search(

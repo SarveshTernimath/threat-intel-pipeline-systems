@@ -107,9 +107,9 @@ export default function ThreatTable({ threats, isLoading, error, searched }: Pro
                 </p>
                 {t.keywords?.length > 0 && (
                   <div className="flex flex-wrap gap-1 mt-1.5">
-                    {t.keywords.slice(0, 4).map((kw) => (
+                    {t.keywords.slice(0, 4).map((kw, kwIndex) => (
                       <span
-                        key={kw}
+                        key={`${kw}-${kwIndex}`}
                         className="text-[10px] px-1.5 py-0.5 rounded bg-gray-900 text-gray-500 border border-gray-800"
                       >
                         {kw}

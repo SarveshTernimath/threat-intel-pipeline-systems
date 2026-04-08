@@ -3,6 +3,7 @@ import requests
 import json
 import redis
 from datetime import datetime, timezone
+import time
 
 try:
     from dotenv import load_dotenv
@@ -27,7 +28,8 @@ def fetch_otx_pulses():
 
     max_retries = 2  # retries after first attempt (up to 3 tries per page)
 
-    for page in range(1, 4):  # Loop max 3 pages
+    # Fetch more pages to increase pulse coverage
+    for page in range(1, 11):  # max 10 pages
         params = {"limit": 50, "page": page}
         response = None
         last_error = None
@@ -66,6 +68,22 @@ def fetch_otx_pulses():
             if not description:
                 description = pulse.get("name", "No description available")
 
+            # Extract structured indicators if present (IPs, Hashes, Domains)
+            indicators = pulse.get("indicators", [])
+            extracted_iocs = {"ips": [], "domains": [], "hashes": []}
+            
+            for ind in indicators:
+                ind_type = ind.get("type", "").lower()
+                indicator = ind.get("indicator", "")
+                if not indicator: continue
+                
+                if ind_type in ["ipv4", "ipv6"]:
+                    extracted_iocs["ips"].append(indicator)
+                elif ind_type in ["domain", "hostname"]:
+                    extracted_iocs["domains"].append(indicator)
+                elif ind_type in ["filehash-md5", "filehash-sha256", "imphash"]:
+                    extracted_iocs["hashes"].append(indicator)
+
             published_date_full = pulse.get("created", "")
             published_date = published_date_full.split("T")[0] if "T" in published_date_full else published_date_full
 
@@ -89,14 +107,15 @@ def fetch_otx_pulses():
                 "published_date": published_date,
                 "keywords": keywords,
                 "severity": severity,
-                "is_recent": True # Current activity implicitly flagged as recent feed flow
+                "is_recent": True, # Current activity implicitly flagged as recent feed flow,
+                "iocs": extracted_iocs
             }
 
             cve_json = json.dumps(normalized_cve)
 
             try:
                 redis_client.rpush('threat_queue', cve_json)
-                print(f"Pushed {cve_id} safely to Redis threat_queue")
+                print(f"Pushed {cve_id} safely with {len(extracted_iocs['ips'])} IPs to Redis")
             except redis.RedisError as re:
                 print(f"Redis pipeline error: {re}")
 
@@ -104,4 +123,6 @@ def fetch_otx_pulses():
             break
 
 if __name__ == "__main__":
-    fetch_otx_pulses()
+    while True:
+        fetch_otx_pulses()
+        time.sleep(300)  # 5 minutes

@@ -7,6 +7,7 @@ import hashlib
 import re
 from datetime import datetime
 from email.utils import parsedate_to_datetime
+import time
 
 # Initialize Redis connection from REDIS_URL env var (Upstash) or fallback to local
 redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
@@ -14,7 +15,10 @@ redis_client = redis.from_url(redis_url)
 
 RSS_FEEDS = [
     "https://feeds.feedburner.com/TheHackersNews",
-    "https://www.bleepingcomputer.com/feed/"
+    "https://www.bleepingcomputer.com/feed/",
+    "https://www.securityweek.com/feed/",
+    "https://krebsonsecurity.com/feed/",
+    "https://www.darkreading.com/rss.xml"
 ]
 
 def clean_html(raw_html):
@@ -68,6 +72,11 @@ def fetch_rss_feeds():
                 # Construct a short distinct ID resolving into the format `RSS-{unique_id}`
                 unique_hash = hashlib.md5(link.encode('utf-8')).hexdigest()[:10]
                 rss_cve_id = f"RSS-{unique_hash}"
+
+                unique_id = hashlib.sha256(link.encode()).hexdigest()
+                if redis_client.sismember("seen_threats", unique_id):
+                    continue
+                redis_client.sadd("seen_threats", unique_id)
                 
                 # Strip out HTML elements and cleanly merge the title with the core snippet description
                 clean_description = clean_html(description)
@@ -95,4 +104,6 @@ def fetch_rss_feeds():
             print(f"XML structurally failed to parse for {feed_url}: {parse_err}")
 
 if __name__ == "__main__":
-    fetch_rss_feeds()
+    while True:
+        fetch_rss_feeds()
+        time.sleep(300)  # 5 minutes

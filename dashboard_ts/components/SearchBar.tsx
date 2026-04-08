@@ -6,11 +6,25 @@ import { Search } from "lucide-react";
 interface Props {
   onSearch: (query: string) => void;
   isLoading: boolean;
+  initialValue?: string;
 }
 
-export default function SearchBar({ onSearch, isLoading }: Props) {
+export default function SearchBar({ onSearch, isLoading, initialValue = "" }: Props) {
+  const [isClient, setIsClient] = useState(false);
   const [value, setValue] = useState("");
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
+
+  useEffect(() => {
+    if (!value.trim() && initialValue.trim()) {
+      setValue(initialValue.trim());
+    }
+    // Intentionally not tracking `value` to avoid resetting user input.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialValue]);
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -56,7 +70,7 @@ export default function SearchBar({ onSearch, isLoading }: Props) {
         <button
           id="search-submit-btn"
           type="submit"
-          disabled={isLoading || !value.trim()}
+          disabled={!isClient || isLoading || value.trim() === ""}
           className="
             px-6 py-3.5 rounded-lg font-semibold text-sm
             bg-red-700 hover:bg-red-600 active:bg-red-800

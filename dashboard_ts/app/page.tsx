@@ -1,13 +1,15 @@
 "use client";
 
 import { useState, useCallback, useMemo, useEffect } from "react";
-import { Shield, Terminal, Activity, Database } from "lucide-react";
+import { Shield, Terminal } from "lucide-react";
 import SearchBar from "@/components/SearchBar";
 import SeverityFilter from "@/components/SeverityFilter";
 import ThreatTable from "@/components/ThreatTable";
 import ThreatMap from "@/components/ThreatMap";
 import SkeletonLoader from "@/components/SkeletonLoader";
-import { searchThreats } from "@/services/api";
+import StatsCards from "@/components/StatsCards";
+import InsightsPanel from "@/components/InsightsPanel";
+import { searchThreats, fetchGeoThreats } from "@/services/api";
 import { Threat, Severity } from "@/types";
 
 const DEFAULT_KEYWORD = "attack";
@@ -15,10 +17,12 @@ const DEFAULT_KEYWORD = "attack";
 export default function DashboardPage() {
   const [query, setQuery] = useState("");
   const [threats, setThreats] = useState<Threat[]>([]);
+  const [geoThreats, setGeoThreats] = useState<Threat[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searched, setSearched] = useState(false);
   const [severityFilter, setSeverityFilter] = useState<Severity | "all">("all");
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
 
   const handleSearch = useCallback(async (q: string) => {
     if (!q.trim()) return;
@@ -31,6 +35,7 @@ export default function DashboardPage() {
     try {
       const data = await searchThreats(q);
       setThreats(data);
+      setLastUpdatedAt(new Date());
     } catch (err: unknown) {
       setError(
         err instanceof Error
@@ -48,17 +53,34 @@ export default function DashboardPage() {
   }, [handleSearch]);
 
   useEffect(() => {
+    const fetchGeo = async () => {
+      try {
+        const data = await fetchGeoThreats(50);
+        setGeoThreats(data);
+      } catch (err) {
+        console.error("Failed to load geo threats", err);
+      }
+    };
+    void fetchGeo();
+    
+    // Refresh geo data every 10 seconds
+    const intervalId = setInterval(fetchGeo, 10000);
+    return () => clearInterval(intervalId);
+  }, []);
+
+  useEffect(() => {
     if (!searched || !query.trim()) return;
 
     const intervalId = setInterval(async () => {
       try {
         const data = await searchThreats(query);
         setThreats(data);
+        setLastUpdatedAt(new Date());
       } catch (err) {
         // Silently ignore background errors to avoid UX disruption
         console.error("Background refresh failed", err);
       }
-    }, 10000);
+    }, 5000);
 
     return () => clearInterval(intervalId);
   }, [query, searched]);
@@ -78,12 +100,10 @@ export default function DashboardPage() {
     );
   }, [threats, severityFilter]);
 
-  const stats = [
-    { label: "Total Threats", value: threats.length, icon: Database, color: "text-red-400" },
-    { label: "Critical",      value: severityCounts.critical ?? 0, icon: Shield,   color: "text-red-500" },
-    { label: "High",          value: severityCounts.high ?? 0,     icon: Activity, color: "text-orange-400" },
-    { label: "Sources",       value: [...new Set(threats.map((r) => r.source))].length, icon: Terminal, color: "text-gray-400" },
-  ];
+  const latestAttackType = useMemo(() => {
+    const latest = threats.find((t) => t.attack_type && t.attack_type.trim());
+    return latest?.attack_type?.trim() ?? "";
+  }, [threats]);
 
   return (
     <main className="min-h-screen bg-[#07070a] text-gray-100">
@@ -106,7 +126,13 @@ export default function DashboardPage() {
           <div className="flex items-center gap-2">
             <span className="inline-flex items-center gap-1.5 text-[11px] font-mono text-green-500">
               <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
-              LIVE
+              LIVE FEED ACTIVE
+            </span>
+            <span className="inline-flex items-center gap-1.5 text-[11px] font-mono text-cyan-400 border border-cyan-900/40 rounded px-2 py-0.5">
+              SYNC {lastUpdatedAt ? lastUpdatedAt.toLocaleTimeString() : "--:--:--"}
+            </span>
+            <span className="inline-flex items-center gap-1 text-[11px] font-mono text-gray-400 border border-gray-800 rounded px-2 py-0.5">
+              {threats.length} THREATS
             </span>
           </div>
         </div>
@@ -115,22 +141,12 @@ export default function DashboardPage() {
       <div className="max-w-screen-xl mx-auto px-6 py-8 space-y-8">
 
         {/* Stats Row */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {stats.map(({ label, value, icon: Icon, color }) => (
-            <div
-              key={label}
-              className="bg-[#0d0d10] border border-gray-800/80 rounded-xl p-4 flex items-center gap-4 hover:border-gray-700 transition-colors"
-            >
-              <div className="p-2.5 bg-gray-900 rounded-lg">
-                <Icon className={color} size={18} />
-              </div>
-              <div>
-                <p className="text-2xl font-bold font-mono text-white">{value}</p>
-                <p className="text-xs text-gray-600 font-mono">{label}</p>
-              </div>
-            </div>
-          ))}
-        </div>
+        <StatsCards
+          total={threats.length}
+          critical={severityCounts.critical ?? 0}
+          high={severityCounts.high ?? 0}
+          latestAttackType={latestAttackType}
+        />
 
         {/* Search Card */}
         <div className="bg-[#0d0d10] border border-gray-800/80 rounded-xl p-6 space-y-4">
@@ -140,7 +156,7 @@ export default function DashboardPage() {
               Threat Search
             </span>
           </div>
-          <SearchBar onSearch={handleSearch} isLoading={isLoading} />
+          <SearchBar onSearch={handleSearch} isLoading={isLoading} initialValue={DEFAULT_KEYWORD} />
           {query && (
             <p className="text-xs font-mono text-gray-600">
               {isLoading ? "Scanning..." : `Showing results for `}
@@ -170,7 +186,8 @@ export default function DashboardPage() {
             <SkeletonLoader />
           ) : (
             <div className="space-y-8">
-              <ThreatMap threats={threats} />
+              <InsightsPanel threats={filteredResults} />
+              <ThreatMap threats={geoThreats} />
               <ThreatTable
                 threats={filteredResults}
                 isLoading={isLoading}

@@ -5,3 +5,7 @@ __pycache__/
 worker.exe
 workers/worker.exe
 .env
+.runtime/
+runtime-logs/
+.next/
+node_modules/

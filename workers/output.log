@@ -1,0 +1,81 @@
+Worker connected to Redis. Listening on 'threat_queue'...
+========================
+STRUCTURED DEBUG OUTPUT:
+REDIS_URL: 
+ELASTICSEARCH_URL: http://localhost:9200
+FINAL_INDEXING_ENDPOINT: http://localhost:9200/threats/_doc/CVE-2005-3817
+========================
+========================
+STRUCTURED DEBUG OUTPUT:
+REDIS_URL: 
+ELASTICSEARCH_URL: http://localhost:9200
+FINAL_INDEXING_ENDPOINT: http://localhost:9200/threats/_doc/CVE-2006-3607
+========================
+========================
+STRUCTURED DEBUG OUTPUT:
+REDIS_URL: 
+ELASTICSEARCH_URL: http://localhost:9200
+FINAL_INDEXING_ENDPOINT: http://localhost:9200/threats/_doc/CVE-2005-3938
+========================
+========================
+STRUCTURED DEBUG OUTPUT:
+REDIS_URL: 
+ELASTICSEARCH_URL: http://localhost:9200
+FINAL_INDEXING_ENDPOINT: http://localhost:9200/threats/_doc/CVE-2007-5449
+========================
+========================
+STRUCTURED DEBUG OUTPUT:
+REDIS_URL: 
+ELASTICSEARCH_URL: http://localhost:9200
+FINAL_INDEXING_ENDPOINT: http://localhost:9200/threats/_doc/CVE-2005-3937
+========================
+--- New Threat Record ---
+Source:         NVD
+CVE ID:         CVE-2005-3937
+Description:    SQL injection vulnerability in Softbiz B2B Trading Marketplace Script 1.1 and earler allows remote attackers to execute arbitrary SQL commands via the cid parameter in (1) selloffers.php, (2) buyoffers.php, (3) products.php, or (4) profiles.php.
+Published Date: 2005-12-01
+Keywords:       [sql injection]
+Attack Type:    injection
+Severity:       critical
+IOCs:           {IPs:[] Domains:[] Hashes:[]}
+
+--- New Threat Record ---
+Source:         NVD
+CVE ID:         CVE-2007-5449
+Description:    SQL injection vulnerability in searchresult.php in Softbiz Recipes Portal Script allows remote attackers to execute arbitrary SQL commands via the sbcat_id parameter.
+Published Date: 2007-10-14
+Keywords:       [sql injection]
+Attack Type:    injection
+Severity:       critical
+IOCs:           {IPs:[] Domains:[] Hashes:[]}
+
+--- New Threat Record ---
+Source:         NVD
+CVE ID:         CVE-2005-3938
+Description:    SQL injection vulnerability in Softbiz FAQ Script 1.1 and earler allows remote attackers to execute arbitrary SQL commands via the id parameter in (1) index.php, (2) faq_qanda.php, (3) refer_friend.php, (4) print_article.php, or (5) add_comment.php.
+Published Date: 2005-12-01
+Keywords:       [sql injection]
+Attack Type:    injection
+Severity:       critical
+IOCs:           {IPs:[] Domains:[] Hashes:[]}
+
+--- New Threat Record ---
+Source:         NVD
+CVE ID:         CVE-2005-3817
+Description:    Multiple SQL injection vulnerabilities in Softbiz Web Host Directory Script 1.1 and earlier allow remote attackers to execute arbitrary SQL commands via the (1) cid parameter in search_result.php, (2) sbres_id parameter in review.php, (3) cid parameter in browsecats.php,  (4) h_id parameter in email.php, and (5) an unspecified parameter to the search module.
+Published Date: 2005-11-26
+Keywords:       [sql injection]
+Attack Type:    injection
+Severity:       critical
+IOCs:           {IPs:[] Domains:[] Hashes:[]}
+
+--- New Threat Record ---
+Source:         NVD
+CVE ID:         CVE-2006-3607
+Description:    Multiple cross-site scripting (XSS) vulnerabilities in Softbiz Banner Exchange Script (aka Banner Exchange Network Script) 1.0 allow remote attackers to inject arbitrary web script or HTML via (1) the city parameter in (a) insertmember.php, and (2) a PHPSESSID cookie in (b) lostpassword.php, (c) gen_confirm_mem.php, and (d) index.php.
+Published Date: 2006-07-18
+Keywords:       [xss]
+Attack Type:    web attack
+Severity:       medium
+IOCs:           {IPs:[] Domains:[] Hashes:[]}
+
