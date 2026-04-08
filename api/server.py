@@ -10,8 +10,11 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=False, # Changed to False: FastAPI blocks True alongside wildcard "*" origins natively
+    allow_origins=[
+        "https://threat-intel-pipeline-systems-bt8p.vercel.app",
+        "http://localhost:3000"
+    ],
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
