@@ -75,6 +75,7 @@ export default function DashboardPage() {
       try {
         const data = await searchThreats(query);
         setThreats(data);
+        setError(null);
         setLastUpdatedAt(new Date());
       } catch (err) {
         // Silently ignore background errors to avoid UX disruption
