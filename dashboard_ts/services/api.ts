@@ -55,3 +55,11 @@ export async function fetchGeoThreats(limit: number = 50): Promise<Threat[]> {
   if (Array.isArray(data)) return data as Threat[];
   return [];
 }
+
+export async function fetchAllThreats(limit: number = 200): Promise<Threat[]> {
+  const url = `${BASE_URL}/all-threats?limit=${limit}`;
+  const data = await fetchWithRetry(url);
+
+  if (Array.isArray(data)) return data as Threat[];
+  return [];
+}

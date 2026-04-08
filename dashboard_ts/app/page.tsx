@@ -9,7 +9,7 @@ import ThreatMap from "@/components/ThreatMap";
 import SkeletonLoader from "@/components/SkeletonLoader";
 import StatsCards from "@/components/StatsCards";
 import InsightsPanel from "@/components/InsightsPanel";
-import { searchThreats, fetchGeoThreats } from "@/services/api";
+import { searchThreats, fetchGeoThreats, fetchAllThreats } from "@/services/api";
 import { Threat, Severity } from "@/types";
 
 const DEFAULT_KEYWORD = "attack";
@@ -48,14 +48,30 @@ export default function DashboardPage() {
     }
   }, []);
 
+  // Initial load: fetch ALL threats (match_all) so dashboard shows 100+ immediately.
+  // When user searches explicitly, searchThreats() is called. Both coexist safely.
   useEffect(() => {
-    void handleSearch(DEFAULT_KEYWORD);
+    const loadAll = async () => {
+      setIsLoading(true);
+      setSearched(true);
+      try {
+        const data = await fetchAllThreats(200);
+        setThreats(data);
+        setLastUpdatedAt(new Date());
+      } catch {
+        // Fallback to keyword search if /all-threats fails (e.g. old deployment still deploying)
+        void handleSearch(DEFAULT_KEYWORD);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    void loadAll();
   }, [handleSearch]);
 
   useEffect(() => {
     const fetchGeo = async () => {
       try {
-        const data = await fetchGeoThreats(50);
+        const data = await fetchGeoThreats(100);
         setGeoThreats(data);
       } catch (err) {
         console.error("Failed to load geo threats", err);
@@ -188,7 +204,7 @@ export default function DashboardPage() {
           ) : (
             <div className="space-y-8">
               <InsightsPanel threats={filteredResults} />
-              <ThreatMap threats={geoThreats} />
+              <ThreatMap threats={geoThreats.length > 0 ? geoThreats : threats.filter(t => t.lat && t.lng)} />
               <ThreatTable
                 threats={filteredResults}
                 isLoading={isLoading}
