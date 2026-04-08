@@ -180,6 +180,13 @@ def semantic_search(
 
     # Step 2 Smart Fallback
     try:
+        import os
+        # Render Free instances have 512MB hard limit. PyTorch + SentenceTransformers requires ~800MB+.
+        # We must actively prevent the model from loading to protect Uvicorn from OS-level SIGKILL (OOM),
+        # which silently drops the container into the permanent 521 CORS graveyard.
+        if os.environ.get("RENDER") and not os.environ.get("RENDER_PAID_TIER"):
+            raise Exception("Cloud Memory Protection: Semantic search requires an upgraded instance (>1GB RAM). PyTorch initialization blocked to strictly prevent a permanent 521 OOM crash.")
+
         from sentence_transformers import SentenceTransformer
         # Load local AI model block dynamically
         model = SentenceTransformer('all-MiniLM-L6-v2')
