@@ -235,7 +235,7 @@ def search_threats(
 ):
     # Base Elasticsearch query structure
     es_query = {
-        "size": 100,
+        "size": limit if limit else 100,
         "query": {
             "bool": {
                 "must": []
@@ -281,6 +281,7 @@ def search_threats(
             source = hit.get("_source", {})
             results.append({
                 "cve_id": source.get("cve_id", "Unknown"),
+                "source": source.get("source", "Unknown"),
                 "description": source.get("description", "No description"),
                 "keywords": source.get("keywords", []),
                 "attack_type": source.get("attack_type", "Unknown"),

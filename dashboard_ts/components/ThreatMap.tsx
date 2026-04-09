@@ -70,7 +70,7 @@ export default function ThreatMap({ threats = [] }: ThreatMapProps) {
     }
 
     const arcs = geoThreats
-      .slice(0, 30)
+      .slice(0, 100)
       .map((threat: any, index: number) => {
         const nextThreat = geoThreats[index + 1];
         if (!nextThreat) return null;

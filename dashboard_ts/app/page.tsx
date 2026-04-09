@@ -79,8 +79,8 @@ export default function DashboardPage() {
     };
     void fetchGeo();
     
-    // Refresh geo data every 10 seconds
-    const intervalId = setInterval(fetchGeo, 10000);
+    // Refresh geo data every 60 seconds to prevent WebGL stutter
+    const intervalId = setInterval(fetchGeo, 60000);
     return () => clearInterval(intervalId);
   }, []);
 
