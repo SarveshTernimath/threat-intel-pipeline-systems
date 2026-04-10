@@ -7,8 +7,16 @@ import os
 import time
 
 # Initialize Redis connection from REDIS_URL env var (Upstash) or fallback to local
-redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
-redis_client = redis.from_url(redis_url)
+from dotenv import load_dotenv
+import os
+import redis
+
+load_dotenv()
+
+redis_client = redis.from_url(
+    os.getenv("REDIS_URL"),
+    decode_responses=True
+)
 
 def fetch_nvd_data():
     url = "https://services.nvd.nist.gov/rest/json/cves/2.0"
@@ -70,7 +78,12 @@ def fetch_nvd_data():
             
             cve_json = json.dumps(normalized_cve)
             
+            unique_id = cve_id
+            if redis_client.sismember("seen_threats", unique_id):
+                continue
+            
             try:
+                redis_client.sadd("seen_threats", unique_id)
                 redis_client.rpush('threat_queue', cve_json)
                 print(f"Pushed {cve_id} to Redis threat_queue")
             except redis.RedisError as re:

@@ -18,6 +18,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/joho/godotenv"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -193,24 +194,37 @@ func enrichAttackTypeFromDescription(descLower string, fallback string) string {
 }
 
 func main() {
+	// Try loading .env from parent dir since worker is in workers/
+	_ = godotenv.Load("../.env")
+
 	ctx := context.Background()
 
-	// Connect to Redis — use REDIS_URL env var (Upstash) or fallback to local
+	// Connect to Redis — strictly use REDIS_URL env var
 	redisURL := os.Getenv("REDIS_URL")
-	var rdb *redis.Client
-	if redisURL != "" {
-		opt, err := redis.ParseURL(redisURL)
-		if err != nil {
-			log.Fatalf("Invalid REDIS_URL: %v", err)
-		}
-		rdb = redis.NewClient(opt)
-	} else {
-		rdb = redis.NewClient(&redis.Options{
-			Addr:     "localhost:6379",
-			Password: "",
-			DB:       0,
-		})
+	redisURL = strings.TrimSpace(redisURL)
+
+	if redisURL == "" {
+		log.Fatal("ERROR: REDIS_URL environment variable is strictly required! No local fallback permitted.")
 	}
+
+	// Extract clean URI if user pasted the entire redis-cli bash command by accident
+	if strings.Contains(redisURL, "redis://") {
+		idx := strings.Index(redisURL, "redis://")
+		redisURL = redisURL[idx:]
+	} else if strings.Contains(redisURL, "rediss://") {
+		idx := strings.Index(redisURL, "rediss://")
+		redisURL = redisURL[idx:]
+	}
+
+	opt, err := redis.ParseURL(redisURL)
+	if err != nil {
+		log.Fatalf("Invalid REDIS_URL: %v", err)
+	}
+	
+	// Force TLS activation
+	opt.TLSConfig = &tls.Config{InsecureSkipVerify: false}
+	
+	rdb := redis.NewClient(opt)
 
 	// Test connection with robust retry to handle network drops cleanly
 	for {
@@ -222,7 +236,37 @@ func main() {
 		time.Sleep(5 * time.Second)
 	}
 
-	fmt.Println("Worker connected to Redis. Listening on 'threat_queue'...")
+	log.Println("Redis connected. Listening on 'threat_queue'...")
+
+	esURLGlobal := os.Getenv("ELASTICSEARCH_URL")
+	esURLGlobal = strings.TrimSpace(esURLGlobal)
+	if esURLGlobal == "" {
+		log.Fatal("ERROR: ELASTICSEARCH_URL environment variable is missing! Please set it to connect to Elastic Cloud.")
+	}
+
+	for {
+		client := &http.Client{Timeout: 5 * time.Second}
+		pingReq, _ := http.NewRequest("GET", esURLGlobal, nil)
+		if parsedURL, parseErr := url.Parse(esURLGlobal); parseErr == nil && parsedURL.User != nil {
+			if password, ok := parsedURL.User.Password(); ok {
+				pingReq.SetBasicAuth(parsedURL.User.Username(), password)
+			}
+		}
+		if strings.HasPrefix(esURLGlobal, "https://localhost") || strings.HasPrefix(esURLGlobal, "https://127.0.0.1") {
+			client.Transport = &http.Transport{
+				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+			}
+		}
+
+		resp, err := client.Do(pingReq)
+		if err == nil {
+			resp.Body.Close()
+			break
+		}
+		log.Printf("Could not connect to Elasticsearch at %s (%v). Retrying in 5 seconds...", esURLGlobal, err)
+		time.Sleep(5 * time.Second)
+	}
+	fmt.Printf("Worker connected to Elasticsearch at %s\n", esURLGlobal)
 
 	var wg sync.WaitGroup
 
@@ -238,6 +282,7 @@ func main() {
 		// BLPOP returns a slice with length 2: [queue_name, popped_value]
 		if len(result) == 2 {
 			message := result[1]
+			log.Printf("Received threat message from Redis: %s", message)
 
 			wg.Add(1)
 			go func(message string) {
@@ -254,7 +299,7 @@ func main() {
 				esURL := os.Getenv("ELASTICSEARCH_URL")
 				esURL = strings.TrimSpace(esURL)
 				if esURL == "" {
-					esURL = "http://localhost:9200"
+					log.Fatal("ERROR: ELASTICSEARCH_URL environment variable is missing!")
 				}
 
 				esBaseUrl := esURL // Preserve for auth logic
@@ -263,13 +308,16 @@ func main() {
 				docID := fmt.Sprintf("%s-%d", threat.CVEID, time.Now().UnixMilli())
 				esURL = fmt.Sprintf("%s/threats/_doc/%s", tempBase, docID)
 
-				cmd := exec.Command("python", "../nlp_service/entity_extractor.py")
+				pythonPath := `C:\Users\SARVESH\Desktop\threat intel pipeline platfrom\venv\Scripts\python.exe`
+				log.Printf("Executing NLP entity extraction for CVE: %s", threat.CVEID)
+				cmd := exec.Command(pythonPath, "../nlp_service/entity_extractor.py")
 				cmd.Stdin = strings.NewReader(threat.Description)
 				var out bytes.Buffer
 				cmd.Stdout = &out
 
 				var enrichedMsg []byte = []byte(message)
 				if err := cmd.Run(); err == nil {
+					log.Printf("NLP extraction successful for CVE: %s", threat.CVEID)
 					type IOCs struct {
 						IPs         []string      `json:"ips"`
 						EnrichedIPs []interface{} `json:"enriched_ips"`
@@ -285,7 +333,7 @@ func main() {
 
 						// Execute Semantic API logic appending the sentence embeddings silently
 						var denseVector []float32
-						cmdEmbed := exec.Command("python", "../nlp_service/embedding_model.py")
+						cmdEmbed := exec.Command(pythonPath, "../nlp_service/embedding_model.py")
 						cmdEmbed.Stdin = strings.NewReader(threat.Description)
 						if outEmbed, err := cmdEmbed.Output(); err == nil {
 							var embedResult struct {
@@ -372,9 +420,10 @@ func main() {
 						}
 					}
 				} else {
-					log.Printf("NLP script error: %v, Output: %s", err, out.String())
+					log.Printf("NLP script error for CVE: %s: %v, Output: %s", threat.CVEID, err, out.String())
 				}
 
+				log.Printf("Indexing threat %s into Elasticsearch at %s ...", threat.CVEID, esBaseUrl)
 				req, err := http.NewRequest("PUT", esURL, bytes.NewBuffer(enrichedMsg))
 				if err != nil {
 					log.Printf("Error creating ES request: %v", err)
@@ -422,10 +471,10 @@ func main() {
 				defer resp.Body.Close()
 
 				if resp.StatusCode >= 200 && resp.StatusCode < 300 {
-					log.Printf("Successfully indexed threat: %s", threat.CVEID)
+					log.Printf("Successfully indexed threat in ES: %s", threat.CVEID)
 				} else {
 					respBody, _ := io.ReadAll(resp.Body)
-					log.Printf("Failed to index threat. Status: %s, Response: %s", resp.Status, string(respBody))
+					log.Printf("Failed to index threat %s in ES. Status: %s, Response: %s", threat.CVEID, resp.Status, string(respBody))
 				}
 			}(message)
 		}

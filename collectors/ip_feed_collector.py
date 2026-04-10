@@ -1,6 +1,16 @@
 import requests, time, redis, json
 
-r = redis.Redis(host='localhost', port=6379, db=0)
+from dotenv import load_dotenv
+import os
+import redis
+
+load_dotenv()
+
+redis_client = redis.from_url(
+    os.getenv("REDIS_URL"),
+    decode_responses=True
+)
+r = redis_client
 
 URL = "https://feodotracker.abuse.ch/downloads/ipblocklist.json"
 

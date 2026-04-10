@@ -3,7 +3,17 @@ import time
 import requests
 import redis
 
-r = redis.Redis(host="localhost", port=6379, db=0)
+from dotenv import load_dotenv
+import os
+import redis
+
+load_dotenv()
+
+redis_client = redis.from_url(
+    os.getenv("REDIS_URL"),
+    decode_responses=True
+)
+r = redis_client
 
 URL = "https://urlhaus.abuse.ch/downloads/json_recent/"
 
@@ -15,9 +25,10 @@ def fetch_and_push():
     items = data if isinstance(data, list) else data.get("urls", [])
 
     for item in items:
+        cve_id_val = str(item.get("id", "URLHAUS-UNKNOWN"))
         payload = {
             "source": "URLHAUS",
-            "cve_id": str(item.get("id", "URLHAUS-UNKNOWN")),
+            "cve_id": cve_id_val,
             "description": item.get("url", ""),
             "published_date": item.get("date_added", ""),
             "hashes": {
@@ -26,6 +37,12 @@ def fetch_and_push():
             },
             "ioc_ip": item.get("url_info_from_api", {}).get("host"),
         }
+        
+        unique_id = cve_id_val
+        if r.sismember("seen_threats", unique_id):
+            continue
+        r.sadd("seen_threats", unique_id)
+        
         r.rpush("threat_queue", json.dumps(payload))
 
 

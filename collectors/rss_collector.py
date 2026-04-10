@@ -10,8 +10,16 @@ from email.utils import parsedate_to_datetime
 import time
 
 # Initialize Redis connection from REDIS_URL env var (Upstash) or fallback to local
-redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
-redis_client = redis.from_url(redis_url)
+from dotenv import load_dotenv
+import os
+import redis
+
+load_dotenv()
+
+redis_client = redis.from_url(
+    os.getenv("REDIS_URL"),
+    decode_responses=True
+)
 
 RSS_FEEDS = [
     "https://feeds.feedburner.com/TheHackersNews",
@@ -70,13 +78,12 @@ def fetch_rss_feeds():
                     published_date = datetime.utcnow().strftime("%Y-%m-%d")  # Strict Elasticsearch schema mapping fallback
                 
                 # Construct a short distinct ID resolving into the format `RSS-{unique_id}`
-                unique_hash = hashlib.md5(link.encode('utf-8')).hexdigest()[:10]
-                rss_cve_id = f"RSS-{unique_hash}"
-
-                unique_id = hashlib.sha256(link.encode()).hexdigest()
-                if redis_client.sismember("seen_threats", unique_id):
+                unique_id = hashlib.sha256(f"{title}{published_date}".encode('utf-8')).hexdigest()
+                rss_cve_id = f"RSS-{unique_id[:10]}"
+                
+                if redis_client.sismember("seen_threats", rss_cve_id):
                     continue
-                redis_client.sadd("seen_threats", unique_id)
+                redis_client.sadd("seen_threats", rss_cve_id)
                 
                 # Strip out HTML elements and cleanly merge the title with the core snippet description
                 clean_description = clean_html(description)

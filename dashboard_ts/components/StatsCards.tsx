@@ -10,8 +10,7 @@ interface StatsCardsProps {
   latestAttackType: string;
 }
 
-// Animates a number from 0 to `target` over `duration` ms
-function useAnimatedCounter(target: number, duration = 600): number {
+function useAnimatedCounter(target: number, duration = 700): number {
   const [display, setDisplay] = useState(target);
   const prevRef = useRef(target);
   const rafRef = useRef<number | null>(null);
@@ -20,29 +19,21 @@ function useAnimatedCounter(target: number, duration = 600): number {
     const from = prevRef.current;
     const to = target;
     if (from === to) return;
-
     const startTime = performance.now();
-
     const tick = (now: number) => {
       const elapsed = now - startTime;
       const progress = Math.min(elapsed / duration, 1);
-      // ease-out cubic
       const eased = 1 - Math.pow(1 - progress, 3);
       setDisplay(Math.round(from + (to - from) * eased));
-
       if (progress < 1) {
         rafRef.current = requestAnimationFrame(tick);
       } else {
         prevRef.current = to;
       }
     };
-
     if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
     rafRef.current = requestAnimationFrame(tick);
-
-    return () => {
-      if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
-    };
+    return () => { if (rafRef.current !== null) cancelAnimationFrame(rafRef.current); };
   }, [target, duration]);
 
   return display;
@@ -50,123 +41,128 @@ function useAnimatedCounter(target: number, duration = 600): number {
 
 interface CardConfig {
   label: string;
+  sublabel: string;
   numericValue?: number;
   textValue?: string;
   icon: React.ElementType;
-  color: string;
+  accentColor: string;
+  glowColor: string;
+  borderColor: string;
+  bgGradient: string;
   glowClass: string;
-  borderClass: string;
-  bgClass: string;
-  iconBg: string;
 }
 
-function StatCard({
-  label,
-  numericValue,
-  textValue,
-  icon: Icon,
-  color,
-  glowClass,
-  borderClass,
-  bgClass,
-  iconBg,
-}: CardConfig) {
+function StatCard({ label, sublabel, numericValue, textValue, icon: Icon, accentColor, glowColor, borderColor, bgGradient, glowClass }: CardConfig) {
   const animated = useAnimatedCounter(numericValue ?? 0);
 
   return (
     <div
-      className={`
-        relative overflow-hidden
-        ${bgClass} ${borderClass} border rounded-xl p-5
-        flex items-center gap-4
-        transition-all duration-300
-        hover:scale-[1.02]
-        group
-        ${glowClass}
-      `}
+      className={`relative overflow-hidden rounded-xl p-5 flex items-center gap-4 transition-all duration-300 hover:scale-[1.02] group cursor-default ${glowClass}`}
+      style={{
+        background: bgGradient,
+        border: `1px solid ${borderColor}`,
+      }}
     >
-      {/* Background glow blob */}
+      {/* Top shimmer line */}
       <div
-        className={`
-          absolute inset-0 opacity-0 group-hover:opacity-100
-          transition-opacity duration-500
-          pointer-events-none
-          ${bgClass.replace("bg-[", "bg-").replace("]", "")}
-        `}
-        aria-hidden="true"
+        className="absolute top-0 left-0 right-0 h-px opacity-60"
+        style={{ background: `linear-gradient(90deg, transparent, ${accentColor}, transparent)` }}
       />
 
-      <div className={`relative z-10 p-2.5 rounded-lg ${iconBg} shrink-0`}>
-        <Icon className={color} size={20} />
+      {/* Corner accent */}
+      <div
+        className="absolute top-0 right-0 w-12 h-12 opacity-10"
+        style={{ background: `radial-gradient(circle at top right, ${accentColor}, transparent 70%)` }}
+      />
+
+      {/* Icon */}
+      <div
+        className="relative z-10 p-2.5 rounded-lg shrink-0 transition-all duration-300 group-hover:scale-110"
+        style={{
+          background: `${accentColor}18`,
+          border: `1px solid ${accentColor}30`,
+          boxShadow: `0 0 12px ${glowColor}`,
+        }}
+      >
+        <Icon style={{ color: accentColor }} size={18} />
       </div>
 
-      <div className="relative z-10 min-w-0">
+      {/* Value */}
+      <div className="relative z-10 min-w-0 flex-1">
         {textValue !== undefined ? (
           <p
-            className={`text-lg font-bold font-mono ${color} truncate max-w-[140px]`}
+            className="text-base font-bold font-mono truncate max-w-[130px] transition-all duration-300"
+            style={{ color: accentColor, textShadow: `0 0 12px ${glowColor}` }}
             title={textValue}
           >
             {textValue || "—"}
           </p>
         ) : (
-          <p className={`text-2xl font-bold font-mono ${color} tabular-nums`}>
-            {animated}
+          <p
+            className="text-2xl font-bold font-mono tabular-nums transition-all duration-300"
+            style={{ color: accentColor, textShadow: `0 0 14px ${glowColor}` }}
+          >
+            {animated.toLocaleString()}
           </p>
         )}
-        <p className="text-xs text-gray-600 font-mono uppercase tracking-widest mt-0.5">
-          {label}
-        </p>
+        <p className="text-[9px] text-gray-600 font-mono uppercase tracking-widest mt-0.5">{label}</p>
+        <p className="text-[8px] text-gray-700 font-mono mt-0.5">{sublabel}</p>
       </div>
+
+      {/* Hover glow veil */}
+      <div
+        className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none rounded-xl"
+        style={{ background: `radial-gradient(ellipse at center, ${accentColor}08, transparent 70%)` }}
+      />
     </div>
   );
 }
 
-export default function StatsCards({
-  total,
-  critical,
-  high,
-  latestAttackType,
-}: StatsCardsProps) {
+export default function StatsCards({ total, critical, high, latestAttackType }: StatsCardsProps) {
   const cards: CardConfig[] = [
     {
       label: "Total Threats",
+      sublabel: "All sources · live",
       numericValue: total,
       icon: Shield,
-      color: "text-red-400",
+      accentColor: "#ff4757",
+      glowColor: "rgba(255,71,87,0.4)",
+      borderColor: "rgba(255,71,87,0.2)",
+      bgGradient: "linear-gradient(135deg, rgba(255,71,87,0.06) 0%, rgba(10,18,36,0.9) 100%)",
       glowClass: "stats-glow-red",
-      borderClass: "border-red-900/40 hover:border-red-700/60",
-      bgClass: "bg-[#0d0d10]",
-      iconBg: "bg-red-900/20",
     },
     {
       label: "Critical",
+      sublabel: "Immediate action",
       numericValue: critical,
       icon: AlertTriangle,
-      color: "text-red-500",
+      accentColor: "#ff2d3a",
+      glowColor: "rgba(255,45,58,0.5)",
+      borderColor: "rgba(255,45,58,0.25)",
+      bgGradient: "linear-gradient(135deg, rgba(255,45,58,0.09) 0%, rgba(10,18,36,0.9) 100%)",
       glowClass: "stats-glow-red-bright",
-      borderClass: "border-red-800/50 hover:border-red-600/70",
-      bgClass: "bg-[#0d0d10]",
-      iconBg: "bg-red-900/30",
     },
     {
-      label: "High",
+      label: "High Severity",
+      sublabel: "Priority escalation",
       numericValue: high,
       icon: Activity,
-      color: "text-orange-400",
+      accentColor: "#ff7f11",
+      glowColor: "rgba(255,127,17,0.4)",
+      borderColor: "rgba(255,127,17,0.2)",
+      bgGradient: "linear-gradient(135deg, rgba(255,127,17,0.06) 0%, rgba(10,18,36,0.9) 100%)",
       glowClass: "stats-glow-orange",
-      borderClass: "border-orange-900/40 hover:border-orange-700/60",
-      bgClass: "bg-[#0d0d10]",
-      iconBg: "bg-orange-900/20",
     },
     {
-      label: "Latest Attack Type",
+      label: "Latest Vector",
+      sublabel: "Attack classification",
       textValue: latestAttackType,
       icon: Crosshair,
-      color: "text-cyan-400",
+      accentColor: "#00e5ff",
+      glowColor: "rgba(0,229,255,0.35)",
+      borderColor: "rgba(0,229,255,0.18)",
+      bgGradient: "linear-gradient(135deg, rgba(0,229,255,0.05) 0%, rgba(10,18,36,0.9) 100%)",
       glowClass: "stats-glow-cyan",
-      borderClass: "border-cyan-900/40 hover:border-cyan-700/60",
-      bgClass: "bg-[#0d0d10]",
-      iconBg: "bg-cyan-900/20",
     },
   ];
 

@@ -20,8 +20,8 @@ async function fetchWithRetry(url: string, maxRetries = 6, delayMs = 5000): Prom
       }
 
       if (!res.ok) {
-         // Break fast for non-recovery HTTP logic errors (404/400)
-         throw new Error(`API error: ${res.status} ${res.statusText}`);
+        // Break fast for non-recovery HTTP logic errors (404/400)
+        throw new Error(`API error: ${res.status} ${res.statusText}`);
       }
       return await res.json();
     } catch (err: any) {
@@ -39,9 +39,9 @@ async function fetchWithRetry(url: string, maxRetries = 6, delayMs = 5000): Prom
 export async function searchThreats(keyword: string): Promise<Threat[]> {
   if (!keyword.trim()) return [];
   const url = `${BASE_URL}/search?keyword=${encodeURIComponent(keyword.trim())}`;
-  
+
   const data = await fetchWithRetry(url);
-  
+
   if (Array.isArray(data)) return data as Threat[];
   if (Array.isArray(data?.results)) return data.results as Threat[];
   if (Array.isArray(data?.hits)) return data.hits as Threat[];
@@ -51,12 +51,12 @@ export async function searchThreats(keyword: string): Promise<Threat[]> {
 export async function fetchGeoThreats(limit: number = 50): Promise<Threat[]> {
   const url = `${BASE_URL}/geo-threats?limit=${limit}`;
   const data = await fetchWithRetry(url);
-  
+
   if (Array.isArray(data)) return data as Threat[];
   return [];
 }
 
-export async function fetchAllThreats(limit: number = 200): Promise<Threat[]> {
+export async function fetchAllThreats(limit: number = 100): Promise<Threat[]> {
   const url = `${BASE_URL}/all-threats?limit=${limit}`;
   const data = await fetchWithRetry(url);
 

@@ -2,6 +2,9 @@ import os
 import requests
 import redis
 import socket
+from dotenv import load_dotenv
+
+load_dotenv()
 
 def check_service(host, port, name):
     try:

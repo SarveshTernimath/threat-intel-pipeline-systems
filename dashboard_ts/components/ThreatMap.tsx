@@ -2,17 +2,20 @@
 
 import { useEffect, useRef, useState, useMemo } from "react";
 import dynamic from "next/dynamic";
+import FlatThreatMap from "./FlatThreatMap";
 
-// Dynamically import react-globe.gl to avoid SSR "window not defined" errors
 const Globe = dynamic(() => import("react-globe.gl"), {
   ssr: false,
   loading: () => (
-    <div className="w-full h-full flex items-center justify-center bg-[#07070a]">
-      <span className="text-red-500 font-mono text-xs tracking-widest animate-pulse">
-        [ INITIALIZING GLOBAL RADAR ]
-      </span>
+    <div className="w-full h-full flex items-center justify-center bg-[#020811]">
+      <div className="flex flex-col items-center gap-3">
+        <div className="w-8 h-8 rounded-full border-2 border-cyan-900 border-t-cyan-400 animate-spin" />
+        <span className="text-cyan-800 font-mono text-xs tracking-widest animate-pulse">
+          INITIALIZING GLOBAL RADAR
+        </span>
+      </div>
     </div>
-  )
+  ),
 });
 
 interface ThreatMapProps {
@@ -23,47 +26,38 @@ export default function ThreatMap({ threats = [] }: ThreatMapProps) {
   const globeRef = useRef<any>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const lastElementClickRef = useRef(0);
-  const [dimensions, setDimensions] = useState({ width: 800, height: 400 });
+  const [dimensions, setDimensions] = useState({ width: 800, height: 420 });
+  const [mapMode, setMapMode] = useState<"3d" | "2d">("3d");
 
   // Interaction states
   const [hoverArc, setHoverArc] = useState<any>(null);
   const [selectedThreat, setSelectedThreat] = useState<any>(null);
 
-  // Auto-resize the globe when the parent container sizes up
   useEffect(() => {
-    const updateDimensions = () => {
+    const update = () => {
       if (containerRef.current) {
-        setDimensions({
-          width: containerRef.current.offsetWidth,
-          height: 400,
-        });
+        setDimensions({ width: containerRef.current.offsetWidth, height: 420 });
       }
     };
-
-    window.addEventListener("resize", updateDimensions);
-    updateDimensions();
-
-    return () => window.removeEventListener("resize", updateDimensions);
+    window.addEventListener("resize", update);
+    update();
+    return () => window.removeEventListener("resize", update);
   }, []);
 
-  // Securely patch auto-rotation when the globe finishes mounting its webgl context
   const handleGlobeReady = () => {
     if (globeRef.current) {
       const controls = globeRef.current.controls();
       controls.autoRotate = true;
       controls.enablePan = true;
-      controls.autoRotateSpeed = 1.8; // Smooth radar spin
-      controls.enableZoom = true;    // Lock the camera field of view
+      controls.autoRotateSpeed = 1.8;
+      controls.enableZoom = true;
     }
   };
 
   const geoThreats = useMemo(() => {
-    const valid = threats.filter((t: any) => t.lat && t.lng);
-    console.log("Geo threats:", valid.length);
-    return valid;
+    return threats.filter((t: any) => t.lat && t.lng);
   }, [threats]);
 
-  // Generate arcs/points strictly from real geo (no mock coordinates)
   const { arcsData, pointsData, ringsData } = useMemo(() => {
     if (!geoThreats || geoThreats.length === 0) {
       return { arcsData: [], pointsData: [], ringsData: [] };
@@ -74,13 +68,14 @@ export default function ThreatMap({ threats = [] }: ThreatMapProps) {
       .map((threat: any, index: number) => {
         const nextThreat = geoThreats[index + 1];
         if (!nextThreat) return null;
-
-        // Map severity: critical -> bright red, high -> orange, medium -> yellow, low -> cyan
         const sev = (threat.severity || "low").toLowerCase();
-        
-        // As requested by user, default all other priorities to bright cyan, except critical which stays red
-        let color = sev === "critical" ? "#ff3b3b" : "#00ffff"; 
-        let sizeLevel = sev === "critical" ? 4 : sev === "high" ? 3 : sev === "medium" ? 2 : 1;
+        // Premium neon color palette
+        const color =
+          sev === "critical" ? "#ff4757" :
+          sev === "high"     ? "#ff7f11" :
+          sev === "medium"   ? "#ffd32a" :
+                               "#00e5ff";
+        const sizeLevel = sev === "critical" ? 4 : sev === "high" ? 3 : sev === "medium" ? 2 : 1;
 
         return {
           startLat: threat.lat,
@@ -89,202 +84,215 @@ export default function ThreatMap({ threats = [] }: ThreatMapProps) {
           endLng: nextThreat.lng,
           color,
           sizeLevel,
-          arcAlt: 0.25,
-          animTime: 1800,
+          arcAlt: 0.28,
+          animTime: sev === "critical" ? 1400 : sev === "high" ? 1600 : 1900,
           threat_data: {
             ...threat,
             realIP: threat.iocs?.ips?.[0] || "",
             location: threat.country || "",
             targetLat: nextThreat.lat.toFixed(4),
-            targetLng: nextThreat.lng.toFixed(4)
-          }
+            targetLng: nextThreat.lng.toFixed(4),
+          },
         };
       })
       .filter(Boolean) as any[];
 
-    // Explicit click-target points exactly overlaying the arc origins
-    const points = arcs.map(arc => ({
+    const points = arcs.map((arc) => ({
       lat: arc.startLat,
       lng: arc.startLng,
-      size: 0.4,
+      size: 0.5,
       color: arc.color,
-      original: arc
+      original: arc,
     }));
 
-    // Pulsing Rings at origin points
-    const rings = arcs.map(arc => ({
+    const rings = arcs.map((arc) => ({
       lat: arc.startLat,
       lng: arc.startLng,
       color: arc.color,
-      size: arc.sizeLevel * 1.5, // size based on severity
-      propSpeed: arc.sizeLevel >= 4 ? 2.0 : arc.sizeLevel >= 3 ? 1.6 : 1.2,
-      repeatTime: arc.sizeLevel >= 4 ? 900 : arc.sizeLevel >= 3 ? 1100 : 1300,
-      threat_data: arc.threat_data
+      size: arc.sizeLevel * 1.6,
+      propSpeed: arc.sizeLevel >= 4 ? 2.2 : arc.sizeLevel >= 3 ? 1.8 : 1.3,
+      repeatTime: arc.sizeLevel >= 4 ? 800 : arc.sizeLevel >= 3 ? 1000 : 1200,
+      threat_data: arc.threat_data,
     }));
 
     return { arcsData: arcs, pointsData: points, ringsData: rings };
   }, [threats]);
 
   const handleElementClick = (elem: any) => {
-    console.log("CLICKED ELEMENT:", elem);
-
     if (!elem) return;
     lastElementClickRef.current = Date.now();
-
-    // SAFE threat data extraction ensuring we map UI requirements
     const data = elem.threat_data ? elem.threat_data : elem;
-    
     setSelectedThreat({
       id: `${data.cve_id || "threat"}-${data.published_date || ""}`,
       ...data,
       displayLat: (elem.startLat || 0).toFixed(4),
       displayLng: (elem.startLng || 0).toFixed(4),
-      displayIP: data.realIP || ""
+      displayIP: data.realIP || "",
     });
-
-    console.log("SELECTED:", data);
-
-    // Smooth isolated zoom pointing exactly to element root coordinates
     requestAnimationFrame(() => {
-      globeRef.current?.pointOfView(
-        {
-          lat: elem.startLat,
-          lng: elem.startLng,
-          altitude: 1.3
-        },
-        800
-      );
+      globeRef.current?.pointOfView({ lat: elem.startLat, lng: elem.startLng, altitude: 1.2 }, 800);
     });
   };
 
+  const sevColor = (sev: string) => {
+    const s = (sev || "low").toLowerCase();
+    return s === "critical" ? "text-red-400" : s === "high" ? "text-orange-400" : s === "medium" ? "text-yellow-400" : "text-cyan-400";
+  };
+
   return (
-    <div
-      className="w-full h-[400px] rounded-xl border border-red-900/40 relative bg-[#050508] shadow-[0_0_30px_rgba(220,38,38,0.08)] flex items-center justify-center cursor-crosshair"
-      style={{ pointerEvents: "auto", position: "relative" }}
-      ref={containerRef}
-      onMouseLeave={() => setHoverArc(null)}
-    >
-      <Globe
-        ref={globeRef}
-        width={dimensions.width}
-        height={dimensions.height}
-        globeImageUrl="//unpkg.com/three-globe/example/img/earth-dark.jpg"
-        backgroundColor="rgba(0,0,0,0)" // Transparent to layer over our custom bg
-        enablePointerInteraction={true}
-
-        // Arc Config (Animated lasers)
-        arcsData={arcsData}
-        arcColor={(d: any) => d === hoverArc ? "#ffffff" : d.color}
-        arcDashLength={0.4}
-        arcDashGap={0.2}
-        arcDashAnimateTime={(d: any) => d.animTime}
-        arcsTransitionDuration={0}
-        arcAltitude="arcAlt"
-        arcStroke={(d: any) => d === hoverArc ? 1.2 : 0.6}
-        onArcHover={setHoverArc}
-        onArcClick={(arc: any, event: any) => {
-          console.log("ARC CLICK WORKING", arc);
-          event?.stopPropagation?.();
-          handleElementClick(arc);
-        }}
-
-        // Points Config (Target clickable origins)
-        pointsData={pointsData}
-        pointColor={(d: any) => d.color}
-        pointAltitude={0.01}
-        pointRadius={0.8}
-        pointResolution={12}
-        onPointClick={(point: any, event: any) => {
-          console.log("POINT CLICK WORKING", point);
-          event?.stopPropagation?.();
-          handleElementClick(point.original);
-        }}
-
-        // Rings Config (Pulsing nodes at origins)
-        ringsData={ringsData}
-        ringColor="color"
-        ringMaxRadius="size"
-        ringPropagationSpeed="propSpeed"
-        ringRepeatPeriod="repeatTime"
-
-        // Handlers
-        onGlobeReady={handleGlobeReady}
-        onGlobeClick={() => {
-          // Prevent globe click from immediately clearing a recent point/arc selection.
-          if (Date.now() - lastElementClickRef.current < 350) return;
-          setSelectedThreat(null);
-        }}
-      />
-
-      {geoThreats.length === 0 && (
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-20">
-          <span className="text-red-500 font-mono text-sm tracking-widest animate-pulse text-center px-4">
-            No geolocation data available for current threats
-          </span>
-        </div>
-      )}
-
-      {/* Decorative Cyber Overlay HUD */}
-      <div className="absolute top-5 left-5 pointer-events-none z-10">
-        <div className="flex items-center gap-2 px-3 py-1.5 bg-black/50 border border-red-900/50 rounded backdrop-blur-sm self-start">
-          <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse shadow-[0_0_10px_rgba(239,68,68,1)]" />
-          <span className="text-[10px] font-mono text-red-400 tracking-widest font-semibold uppercase">Live Threat Radar</span>
-        </div>
+    <div className="w-full space-y-0">
+      {/* Map mode tabs */}
+      <div className="flex items-center gap-0 mb-0 self-start">
+        {(["3d", "2d"] as const).map((mode) => (
+          <button
+            key={mode}
+            id={`map-toggle-${mode}`}
+            onClick={() => {
+              setMapMode(mode);
+              setSelectedThreat(null);
+            }}
+            className={`map-tab px-4 py-1.5 text-[10px] font-mono uppercase tracking-widest border ${
+              mapMode === mode
+                ? "active rounded-tl-md rounded-tr-md border-b-transparent"
+                : "text-gray-600 border-transparent hover:text-gray-400"
+            }`}
+          >
+            {mode === "3d" ? "⬡ 3D Globe" : "⬛ 2D Radar"}
+          </button>
+        ))}
+        <div className="flex-1 border-b border-cyan-900/30 mb-[-1px]" />
       </div>
 
-      {/* Dynamic Tooltip Panel rendering currently tracked target */}
-      <div className="absolute bottom-5 right-5 pointer-events-none z-10 flex flex-col items-end">
-        {selectedThreat && (
-          <div className="bg-black/90 border border-cyan-500/50 rounded-lg p-5 backdrop-blur-md shadow-[0_0_20px_rgba(6,182,212,0.3)] w-72 pointer-events-auto transition-all animate-in fade-in slide-in-from-right-4 duration-300">
-            <h3 className="text-xs font-mono font-bold text-cyan-400 mb-4 border-b border-cyan-900/60 pb-3 flex justify-between items-center tracking-widest">
-              TARGET LOCK ESTABLISHED
-              <button
-                onClick={() => setSelectedThreat(null)}
-                className="text-gray-500 hover:text-white transition-colors p-1"
-              >
-                ✕
-              </button>
-            </h3>
+      {/* Map container */}
+      <div className="relative overflow-hidden" style={{ borderRadius: mapMode === "3d" ? "0 12px 12px 12px" : "0 12px 12px 12px" }}>
+        {mapMode === "2d" ? (
+          <FlatThreatMap threats={geoThreats.length > 0 ? geoThreats : threats} />
+        ) : (
+          <div
+            className="w-full relative cursor-crosshair"
+            style={{
+              height: 420,
+              background: "radial-gradient(ellipse at center, #020d1f 0%, #010810 100%)",
+              border: "1px solid rgba(0,229,255,0.12)",
+              borderRadius: "0 12px 12px 12px",
+              boxShadow: "0 0 40px rgba(0,229,255,0.05), inset 0 0 40px rgba(0,0,0,0.5)",
+            }}
+            ref={containerRef}
+            onMouseLeave={() => setHoverArc(null)}
+          >
+            <Globe
+              ref={globeRef}
+              width={dimensions.width}
+              height={dimensions.height}
+              globeImageUrl="https://unpkg.com/three-globe@2.31.1/example/img/earth-dark.jpg"
+              backgroundColor="rgba(0,0,0,0)"
+              atmosphereColor="#00e5ff"
+              atmosphereAltitude={0.18}
+              enablePointerInteraction={true}
 
-            <div className="space-y-3 text-[11px] font-mono">
-              <div className="flex justify-between border-b border-gray-800/60 pb-1.5">
-                <span className="text-gray-500 uppercase">Origin IP</span>
-                <span className="text-red-400 font-bold">{selectedThreat.displayIP}</span>
-              </div>
-              <div className="flex justify-between border-b border-gray-800/60 pb-1.5">
-                <span className="text-gray-500 uppercase">Location</span>
-                <span className="text-gray-300 truncate max-w-[120px]" title={selectedThreat.location}>{selectedThreat.location}</span>
-              </div>
-              <div className="flex justify-between border-b border-gray-800/60 pb-1.5">
-                <span className="text-gray-500 uppercase">Vector</span>
-                <span className="text-cyan-300 truncate max-w-[120px]" title={selectedThreat.attack_type || "UNKNOWN"}>{selectedThreat.attack_type || "UNKNOWN"}</span>
-              </div>
-              <div className="flex justify-between border-b border-gray-800/60 pb-1.5">
-                <span className="text-gray-500 uppercase">Severity</span>
-                <span className={`uppercase font-bold ${selectedThreat.severity === 'critical' ? 'text-red-500 drop-shadow-[0_0_5px_rgba(239,68,68,0.8)]' :
-                  selectedThreat.severity === 'high' ? 'text-orange-500 drop-shadow-[0_0_5px_rgba(249,115,22,0.8)]' :
-                    selectedThreat.severity === 'medium' ? 'text-yellow-500' : 'text-cyan-500'
-                  }`}>
-                  {selectedThreat.severity || "LOW"}
+              arcsData={arcsData}
+              arcColor={(d: any) => (d === hoverArc ? "#ffffff" : d.color)}
+              arcDashLength={0.45}
+              arcDashGap={0.18}
+              arcDashAnimateTime={(d: any) => d.animTime}
+              arcsTransitionDuration={0}
+              arcAltitude="arcAlt"
+              arcStroke={(d: any) => (d === hoverArc ? 1.4 : 0.7)}
+              onArcHover={setHoverArc}
+              onArcClick={(arc: any, event: any) => {
+                event?.stopPropagation?.();
+                handleElementClick(arc);
+              }}
+
+              pointsData={pointsData}
+              pointColor={(d: any) => d.color}
+              pointAltitude={0.01}
+              pointRadius={0.9}
+              pointResolution={12}
+              onPointClick={(point: any, event: any) => {
+                event?.stopPropagation?.();
+                handleElementClick(point.original);
+              }}
+
+              ringsData={ringsData}
+              ringColor="color"
+              ringMaxRadius="size"
+              ringPropagationSpeed="propSpeed"
+              ringRepeatPeriod="repeatTime"
+
+              onGlobeReady={handleGlobeReady}
+              onGlobeClick={() => {
+                if (Date.now() - lastElementClickRef.current < 350) return;
+                setSelectedThreat(null);
+              }}
+            />
+
+            {/* No geo data overlay */}
+            {geoThreats.length === 0 && (
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-20">
+                <span className="text-cyan-900 font-mono text-sm tracking-widest animate-pulse text-center px-4">
+                  Awaiting geo-tagged threat streams...
                 </span>
               </div>
-              <div className="flex justify-between border-b border-gray-800/60 pb-1.5">
-                <span className="text-gray-500 uppercase">Coords</span>
-                <span className="text-gray-300 tracking-wider">
-                  [{selectedThreat.displayLat}, {selectedThreat.displayLng}]
+            )}
+
+            {/* HUD Badge top-left */}
+            <div className="absolute top-4 left-4 pointer-events-none z-10">
+              <div className="flex items-center gap-2 px-3 py-1.5 bg-black/70 border border-cyan-900/60 rounded backdrop-blur-md">
+                <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse shadow-[0_0_10px_rgba(255,71,87,1)]" />
+                <span className="text-[10px] font-mono text-red-400 tracking-widest font-semibold uppercase">
+                  Live Threat Radar
                 </span>
-              </div>
-              <div className="flex justify-between pt-1">
-                <span className="text-gray-500 uppercase">Timestamp</span>
-                <span className="text-gray-600 text-[10px] truncate max-w-[150px] text-right">{selectedThreat.published_date || "LIVE"}</span>
               </div>
             </div>
+
+            {/* Arc count badge */}
+            <div className="absolute top-4 right-4 pointer-events-none z-10">
+              <div className="px-3 py-1.5 bg-black/60 border border-gray-800/60 rounded backdrop-blur-md">
+                <span className="text-[10px] font-mono text-gray-600">
+                  <span className="text-cyan-500">{arcsData.length}</span> ACTIVE ARCS
+                </span>
+              </div>
+            </div>
+
+            {/* Selected threat panel */}
+            <div className="absolute bottom-4 right-4 pointer-events-none z-10 flex flex-col items-end">
+              {selectedThreat && (
+                <div className="glass-card p-4 w-72 pointer-events-auto animate-slide-in-right border-cyan-500/30 shadow-[0_0_24px_rgba(0,229,255,0.15)]">
+                  <h3 className="text-[10px] font-mono font-bold text-cyan-400 mb-3 border-b border-cyan-900/50 pb-2 flex justify-between items-center tracking-widest">
+                    ◈ TARGET LOCK
+                    <button
+                      onClick={() => setSelectedThreat(null)}
+                      className="text-gray-600 hover:text-cyan-400 transition-colors text-xs ml-2"
+                    >
+                      ✕
+                    </button>
+                  </h3>
+                  <div className="space-y-2 text-[10px] font-mono">
+                    {[
+                      { label: "Origin IP", val: selectedThreat.displayIP || "—", cls: "text-red-400 font-bold" },
+                      { label: "Location",  val: selectedThreat.location || "—", cls: "text-gray-300 truncate max-w-[130px]" },
+                      { label: "Vector",    val: selectedThreat.attack_type || "UNKNOWN", cls: "text-cyan-300 truncate max-w-[130px]" },
+                      { label: "Severity",  val: (selectedThreat.severity || "LOW").toUpperCase(), cls: `font-bold uppercase ${sevColor(selectedThreat.severity)}` },
+                      { label: "Coords",    val: `[${selectedThreat.displayLat}, ${selectedThreat.displayLng}]`, cls: "text-gray-400" },
+                      { label: "Date",      val: selectedThreat.published_date || "LIVE", cls: "text-gray-600 text-[9px]" },
+                    ].map(({ label, val, cls }) => (
+                      <div key={label} className="flex justify-between gap-2 border-b border-gray-900/60 pb-1.5">
+                        <span className="text-gray-600 uppercase shrink-0">{label}</span>
+                        <span className={cls} title={val}>{val}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Vignette */}
+            <div className="absolute inset-0 pointer-events-none rounded-[0_12px_12px_12px]"
+              style={{ boxShadow: "inset 0 0 80px rgba(0,0,0,0.7)" }} />
           </div>
         )}
       </div>
-
-      {/* Scope Reticle / Vignette Overlay for aesthetics */}
-      <div className="absolute inset-0 pointer-events-none rounded-xl ring-1 ring-inset ring-white/5 shadow-[inset_0_0_80px_rgba(0,0,0,0.8)]" />
     </div>
   );
 }

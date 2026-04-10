@@ -5,7 +5,17 @@ import json
 import re
 from datetime import datetime
 
-r = redis.Redis(host='localhost', port=6379, db=0)
+from dotenv import load_dotenv
+import os
+import redis
+
+load_dotenv()
+
+redis_client = redis.from_url(
+    os.getenv("REDIS_URL"),
+    decode_responses=True
+)
+r = redis_client
 
 URLS = [
     "https://feodotracker.abuse.ch/downloads/ipblocklist.csv",
@@ -26,10 +36,11 @@ while True:
                 
                 # Limit per cycle to prevent queue flood, but ensure enough volume to keep the map active
                 for ip in ips[:100]:
-                    if r.sismember("seen_ips", ip):
+                    unique_id = f"IP-{ip}"
+                    if r.sismember("seen_threats", unique_id):
                         continue
                     
-                    r.sadd("seen_ips", ip)
+                    r.sadd("seen_threats", unique_id)
                     
                     payload = {
                         "source": "IP_FEED",
