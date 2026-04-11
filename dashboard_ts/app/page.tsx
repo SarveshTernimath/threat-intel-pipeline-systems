@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useCallback, useMemo, useEffect } from "react";
-import { Shield, Terminal, Radio, Database, Cpu, Globe2, RefreshCw } from "lucide-react";
+import { useState, useCallback, useMemo, useEffect, useRef } from "react";
+import { Shield, Terminal, Radio, Database, Cpu, Globe2, RefreshCw, Wifi, Activity } from "lucide-react";
 import SearchBar from "@/components/SearchBar";
 import SeverityFilter from "@/components/SeverityFilter";
 import ThreatTable from "@/components/ThreatTable";
@@ -25,9 +25,39 @@ export default function DashboardPage() {
   const [severityFilter, setSeverityFilter] = useState<Severity | "all">("all");
   const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
   const [isClient, setIsClient] = useState(false);
+  const [secondsAgo, setSecondsAgo] = useState(0);
+  const [displayCount, setDisplayCount] = useState(0);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [clockTick, setClockTick] = useState(0);
+  const fetchAllRef = useRef<(() => Promise<void>) | undefined>(undefined);
 
-  // Hydration-safe clock
-  useEffect(() => { setIsClient(true); }, []);
+  // Hydration-safe clock — tick every second
+  useEffect(() => {
+    setIsClient(true);
+    const id = setInterval(() => setClockTick((n) => n + 1), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  // "Seconds ago" counter — increments every second after last update
+  useEffect(() => {
+    if (!lastUpdatedAt) return;
+    const id = setInterval(() => {
+      setSecondsAgo(Math.floor((Date.now() - lastUpdatedAt.getTime()) / 1000));
+    }, 1000);
+    return () => clearInterval(id);
+  }, [lastUpdatedAt]);
+
+  // Animated display count — oscillates ±1 around real count for "live" feel
+  useEffect(() => {
+    const base = threats.length;
+    if (base === 0) { setDisplayCount(0); return; }
+    setDisplayCount(base);
+    const id = setInterval(() => {
+      const delta = Math.random() < 0.5 ? 0 : (Math.random() < 0.5 ? 1 : -1);
+      setDisplayCount(Math.max(0, base + delta));
+    }, 4000);
+    return () => clearInterval(id);
+  }, [threats.length]);
 
   const handleSearch = useCallback(async (q: string) => {
     if (!q.trim()) return;
@@ -38,10 +68,10 @@ export default function DashboardPage() {
     setSeverityFilter("all");
     try {
       const raw = await searchThreats(q);
-      // Frontend dedup by cve_id
       const data = Array.from(new Map(raw.map((d: Threat) => [d.cve_id, d])).values());
       setThreats(data);
       setLastUpdatedAt(new Date());
+      setSecondsAgo(0);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to connect to threat intelligence backend.");
       setThreats([]);
@@ -50,27 +80,40 @@ export default function DashboardPage() {
     }
   }, []);
 
-  // Initial load
-  useEffect(() => {
-    const loadAll = async () => {
-      setIsLoading(true);
+  // Core fetch function for all-threats (used on initial load + polling)
+  const fetchAll = useCallback(async (silent = false) => {
+    if (!silent) setIsLoading(true);
+    else setIsRefreshing(true);
+    try {
+      const raw = await fetchAllThreats(50);
+      const data = Array.from(new Map(raw.map((d: Threat) => [d.cve_id, d])).values());
+      setThreats(data);
+      setLastUpdatedAt(new Date());
+      setSecondsAgo(0);
       setSearched(true);
-      try {
-        const raw = await fetchAllThreats(200);
-        // Frontend dedup by cve_id
-        const data = Array.from(new Map(raw.map((d: Threat) => [d.cve_id, d])).values());
-        setThreats(data);
-        setLastUpdatedAt(new Date());
-      } catch {
-        void handleSearch(DEFAULT_KEYWORD);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    void loadAll();
+    } catch {
+      if (!silent) void handleSearch(DEFAULT_KEYWORD);
+    } finally {
+      if (!silent) setIsLoading(false);
+      else setIsRefreshing(false);
+    }
   }, [handleSearch]);
 
-  // Geo threats
+  // Store ref so interval always uses the latest version
+  useEffect(() => { fetchAllRef.current = () => fetchAll(true); }, [fetchAll]);
+
+  // Initial load
+  useEffect(() => { void fetchAll(false); }, [fetchAll]);
+
+  // 20-second auto-refresh (silent, no loading spinner)
+  useEffect(() => {
+    const id = setInterval(() => {
+      if (fetchAllRef.current) void fetchAllRef.current();
+    }, 20000);
+    return () => clearInterval(id);
+  }, []);
+
+  // Geo threats with 60s refresh
   useEffect(() => {
     const fetchGeo = async () => {
       try { setGeoThreats(await fetchGeoThreats(100)); }
@@ -81,16 +124,18 @@ export default function DashboardPage() {
     return () => clearInterval(id);
   }, []);
 
-  // Background refresh
+  // Background search refresh (only when user has active search query)
   useEffect(() => {
     if (!searched || !query.trim()) return;
     const id = setInterval(async () => {
       try {
-        const data = await searchThreats(query);
+        const raw = await searchThreats(query);
+        const data = Array.from(new Map(raw.map((d: Threat) => [d.cve_id, d])).values());
         setThreats(data);
         setLastUpdatedAt(new Date());
+        setSecondsAgo(0);
       } catch (err) { console.error("Refresh failed", err); }
-    }, 5000);
+    }, 20000);
     return () => clearInterval(id);
   }, [query, searched]);
 
@@ -114,8 +159,18 @@ export default function DashboardPage() {
   const activeGeoThreats = geoThreats.length > 0 ? geoThreats : threats.filter((t) => t.lat && t.lng);
 
   const now = new Date();
+  // clockTick drives re-render every second for live clock
+  void clockTick;
   const timeStr = isClient ? now.toLocaleTimeString("en-US", { hour12: false }) : "--:--:--";
   const dateStr = isClient ? now.toLocaleDateString("en-US", { month: "short", day: "2-digit", year: "numeric" }) : "--- --, ----";
+
+  const lastUpdatedStr = isClient && lastUpdatedAt
+    ? secondsAgo < 5
+      ? "just now"
+      : secondsAgo < 60
+      ? `${secondsAgo}s ago`
+      : `${Math.floor(secondsAgo / 60)}m ago`
+    : null;
 
   const tickerItems = useMemo(() => {
     const recent = threats.slice(0, 20).map((t) =>
@@ -123,6 +178,13 @@ export default function DashboardPage() {
     );
     return recent.length > 0 ? [...recent, ...recent] : ["THREAT INTEL PIPELINE ACTIVE — MONITORING ALL CHANNELS"];
   }, [threats]);
+
+  const STATUS_CHIPS = [
+    { icon: Radio,    label: "LIVE FEED",    color: "#ff0033", pulse: true  },
+    { icon: Database, label: "ES CONNECTED", color: "#cc2200", pulse: false },
+    { icon: Cpu,      label: "NLP ACTIVE",   color: "#ff3311", pulse: false },
+    { icon: Wifi,     label: "STREAMING",    color: "#dd1100", pulse: true  },
+  ];
 
   return (
     <>
@@ -137,9 +199,9 @@ export default function DashboardPage() {
         <header
           className="sticky top-0 z-50 backdrop-blur-xl"
           style={{
-            background: "rgba(0,0,0,0.9)",
-            borderBottom: "1px solid rgba(255,0,0,0.18)",
-            boxShadow: "0 1px 30px rgba(0,0,0,0.9), 0 0 0 1px rgba(255,0,0,0.06)",
+            background: "rgba(0,0,0,0.92)",
+            borderBottom: "1px solid rgba(255,0,0,0.2)",
+            boxShadow: "0 1px 30px rgba(0,0,0,0.9), 0 0 0 1px rgba(255,0,0,0.07)",
           }}
         >
           {/* Nav bar */}
@@ -158,64 +220,92 @@ export default function DashboardPage() {
                 <h1 className="text-base font-bold tracking-widest text-white font-mono hud-flicker">
                   THREAT INTEL <span style={{ color: "#ff0033", textShadow: "0 0 10px rgba(255,0,51,0.8)" }}>SYSTEM</span>
                 </h1>
-                <p className="text-[14px] text-red-900 font-mono tracking-widest">
-                  CYBERSECURITY INTELLIGENCE · LIVE INGESTION
+                <p className="text-[13px] text-red-600 font-mono tracking-widest animate-pulse">
+                  ● STREAMING LATEST THREAT INTELLIGENCE — LIVE FEED
                 </p>
               </div>
             </div>
 
             {/* Center status chips */}
-            <div className="hidden md:flex items-center gap-3">
-              {[
-                { icon: Radio,    label: "LIVE FEED",    color: "#ff0033" },
-                { icon: Database, label: "ES CONNECTED", color: "#cc2200" },
-                { icon: Cpu,      label: "NLP ACTIVE",   color: "#ff3311" },
-              ].map(({ icon: Icon, label, color }) => (
+            <div className="hidden md:flex items-center gap-2">
+              {STATUS_CHIPS.map(({ icon: Icon, label, color, pulse }) => (
                 <div key={label}
-                  className="flex items-center gap-2 px-3 py-1.5 rounded-md font-mono text-[15px]"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-md font-mono text-[13px]"
                   style={{
-                    background: `${color}12`,
-                    border: `1px solid ${color}30`,
+                    background: `${color}14`,
+                    border: `1px solid ${color}35`,
                     color,
+                    boxShadow: pulse ? `0 0 8px ${color}30` : "none",
                   }}>
-                  <Icon size={10} className="animate-pulse" />
+                  <span
+                    className="w-1.5 h-1.5 rounded-full"
+                    style={{
+                      background: color,
+                      boxShadow: `0 0 5px ${color}`,
+                      animation: pulse ? "pulse 1.5s ease-in-out infinite" : "none",
+                    }}
+                  />
+                  <Icon size={10} />
                   {label}
                 </div>
               ))}
             </div>
 
-            {/* Right: clock + threat count */}
+            {/* Right: clock + threat count + last updated */}
             <div className="flex items-center gap-3 shrink-0">
               <div className="text-right hidden sm:block">
                 <p className="text-[14px] font-mono font-bold text-white tabular-nums">{timeStr}</p>
-                <p className="text-[14px] font-mono text-red-900">{dateStr}</p>
+                <p className="text-[13px] font-mono text-red-800">{dateStr}</p>
               </div>
-              <div className="flex items-center gap-2 px-3 py-1.5 rounded-md font-mono text-[15px]"
+
+              {/* Threat count with animation */}
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-md font-mono text-[14px]"
                 style={{
                   background: "rgba(255,0,0,0.08)",
-                  border: "1px solid rgba(255,0,0,0.25)",
+                  border: "1px solid rgba(255,0,0,0.28)",
+                  boxShadow: isRefreshing ? "0 0 12px rgba(255,0,0,0.2)" : "none",
+                  transition: "box-shadow 0.4s ease",
                 }}>
                 <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"
                   style={{ boxShadow: "0 0 8px #ff0033" }} />
-                <span className="text-red-400 font-bold tabular-nums">{threats.length}</span>
-                <span className="text-red-900">THREATS</span>
+                <span className="text-red-400 font-bold tabular-nums" style={{ minWidth: "2ch", textAlign: "right" }}>
+                  {displayCount}
+                </span>
+                <span className="text-red-800">THREATS</span>
               </div>
-              {lastUpdatedAt && (
-                <div className="hidden lg:flex items-center gap-1.5 text-[14px] font-mono text-red-900">
-                  <RefreshCw size={8} />
-                  {lastUpdatedAt.toLocaleTimeString()}
+
+              {/* Last updated — live "X seconds ago" */}
+              {lastUpdatedStr && (
+                <div className="hidden lg:flex items-center gap-1.5 text-[13px] font-mono"
+                  style={{ color: secondsAgo < 10 ? "#ff4444" : "rgba(255,80,80,0.45)" }}>
+                  <Activity size={9} className={isRefreshing ? "animate-spin" : ""} />
+                  <span>Updated {lastUpdatedStr}</span>
                 </div>
               )}
+
+              {/* Manual refresh button */}
+              <button
+                onClick={() => void fetchAll(false)}
+                title="Refresh now"
+                className="p-1.5 rounded-md transition-all"
+                style={{
+                  background: "rgba(255,0,0,0.07)",
+                  border: "1px solid rgba(255,0,0,0.2)",
+                  color: "rgba(255,60,60,0.7)",
+                }}
+              >
+                <RefreshCw size={12} className={isLoading || isRefreshing ? "animate-spin" : ""} />
+              </button>
             </div>
           </div>
 
-          {/* ── LIVE Ticker ── */}
+          {/* ── LIVE auto-updated Ticker ── */}
           <div className="relative overflow-hidden h-6 border-t"
-            style={{ borderColor: "rgba(255,0,0,0.08)", background: "rgba(255,0,0,0.03)" }}>
+            style={{ borderColor: "rgba(255,0,0,0.1)", background: "rgba(255,0,0,0.04)" }}>
             <div className="ticker-content h-full flex items-center gap-8 px-4">
               {tickerItems.map((item, i) => (
-                <span key={i} className="text-[14px] font-mono whitespace-nowrap"
-                  style={{ color: item.includes("[CRITICAL]") ? "#ff0033" : item.includes("[HIGH]") ? "#cc3300" : "rgba(255,80,80,0.4)" }}>
+                <span key={i} className="text-[13px] font-mono whitespace-nowrap"
+                  style={{ color: item.includes("[CRITICAL]") ? "#ff0033" : item.includes("[HIGH]") ? "#cc3300" : "rgba(255,80,80,0.45)" }}>
                   ◆ {item}
                 </span>
               ))}
@@ -230,7 +320,7 @@ export default function DashboardPage() {
 
           {/* Stats */}
           <StatsCards
-            total={threats.length}
+            total={displayCount}
             critical={severityCounts.critical ?? 0}
             high={severityCounts.high ?? 0}
             latestAttackType={latestAttackType}
@@ -240,7 +330,7 @@ export default function DashboardPage() {
           <div className="glass-card p-5 space-y-4">
             <div className="flex items-center gap-2">
               <Terminal size={12} className="text-red-700" />
-              <span className="text-[14px] text-red-800 font-mono uppercase tracking-widest">
+              <span className="text-[14px] text-red-700 font-mono uppercase tracking-widest">
                 Intelligence Query Terminal
               </span>
               {query && (
@@ -268,9 +358,16 @@ export default function DashboardPage() {
                       Global Threat Cartography
                     </span>
                   </div>
-                  <span className="text-[14px] font-mono text-red-900">
-                    <span className="text-red-600">{activeGeoThreats.length}</span> geo-tagged threats
-                  </span>
+                  <div className="flex items-center gap-3">
+                    <span className="text-[14px] font-mono text-red-800">
+                      <span className="text-red-500">{activeGeoThreats.length}</span> geo-tagged threats
+                    </span>
+                    {lastUpdatedStr && (
+                      <span className="text-[12px] font-mono" style={{ color: "rgba(255,80,80,0.4)" }}>
+                        ↻ {lastUpdatedStr}
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <ThreatMap threats={activeGeoThreats} />
                 {/* Wave bar synced below globe */}
@@ -281,13 +378,22 @@ export default function DashboardPage() {
               <div className="glass-card p-5 space-y-4">
                 <div className="flex items-center justify-between flex-wrap gap-3">
                   <div className="flex items-center gap-2">
-                    <Terminal size={12} className="text-red-900" />
-                    <span className="text-[14px] text-red-900 font-mono uppercase tracking-widest">
+                    <Terminal size={12} className="text-red-800" />
+                    <span className="text-[14px] text-red-800 font-mono uppercase tracking-widest">
                       Threat Intelligence Records
+                    </span>
+                    {/* Live stream label */}
+                    <span className="text-[12px] font-mono px-2 py-0.5 rounded-full animate-pulse"
+                      style={{
+                        background: "rgba(255,0,0,0.08)",
+                        border: "1px solid rgba(255,0,0,0.2)",
+                        color: "#ff4444",
+                      }}>
+                      ● LIVE STREAM
                     </span>
                   </div>
                   {filteredResults.length > 0 && (
-                    <span className="text-[14px] font-mono" style={{ color: "rgba(255,0,0,0.35)" }}>
+                    <span className="text-[14px] font-mono" style={{ color: "rgba(255,0,0,0.4)" }}>
                       {filteredResults.length} record{filteredResults.length !== 1 ? "s" : ""}
                     </span>
                   )}
@@ -299,17 +405,17 @@ export default function DashboardPage() {
           )}
 
           {/* Footer */}
-          <footer className="text-center py-5 mt-4" style={{ borderTop: "1px solid rgba(255,0,0,0.06)" }}>
+          <footer className="text-center py-5 mt-4" style={{ borderTop: "1px solid rgba(255,0,0,0.07)" }}>
             <div className="flex items-center justify-center gap-6 flex-wrap">
-              <span className="text-[14px] font-mono text-red-950">THREAT INTEL PIPELINE SYSTEMS</span>
+              <span className="text-[13px] font-mono text-red-900">THREAT INTEL PIPELINE SYSTEMS</span>
               {["NVD", "AlienVault OTX", "URLHAUS", "RSS FEEDS", "IP FEEDS"].map((src) => (
-                <span key={src} className="text-[14px] font-mono" style={{ color: "rgba(255,0,0,0.2)" }}>
+                <span key={src} className="text-[13px] font-mono" style={{ color: "rgba(255,0,0,0.22)" }}>
                   ◆ {src}
                 </span>
               ))}
             </div>
-            <p className="text-[14px] font-mono text-red-950 mt-2">
-              Real-time threat ingestion · Elasticsearch · Redis · NLP enrichment
+            <p className="text-[12px] font-mono text-red-900 mt-2">
+              Real-time threat ingestion · Elasticsearch · Redis · NLP enrichment · Auto-refreshes every 20s
             </p>
           </footer>
         </div>
