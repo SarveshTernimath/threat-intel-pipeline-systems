@@ -9,6 +9,7 @@ import ThreatMap from "@/components/ThreatMap";
 import SkeletonLoader from "@/components/SkeletonLoader";
 import StatsCards from "@/components/StatsCards";
 import InsightsPanel from "@/components/InsightsPanel";
+import ThreatWaveBar from "@/components/ThreatWaveBar";
 import { searchThreats, fetchGeoThreats, fetchAllThreats } from "@/services/api";
 import { Threat, Severity } from "@/types";
 
@@ -36,7 +37,9 @@ export default function DashboardPage() {
     setSearched(true);
     setSeverityFilter("all");
     try {
-      const data = await searchThreats(q);
+      const raw = await searchThreats(q);
+      // Frontend dedup by cve_id
+      const data = Array.from(new Map(raw.map((d: Threat) => [d.cve_id, d])).values());
       setThreats(data);
       setLastUpdatedAt(new Date());
     } catch (err: unknown) {
@@ -53,7 +56,9 @@ export default function DashboardPage() {
       setIsLoading(true);
       setSearched(true);
       try {
-        const data = await fetchAllThreats(200);
+        const raw = await fetchAllThreats(200);
+        // Frontend dedup by cve_id
+        const data = Array.from(new Map(raw.map((d: Threat) => [d.cve_id, d])).values());
         setThreats(data);
         setLastUpdatedAt(new Date());
       } catch {
@@ -268,6 +273,8 @@ export default function DashboardPage() {
                   </span>
                 </div>
                 <ThreatMap threats={activeGeoThreats} />
+                {/* Wave bar synced below globe */}
+                <ThreatWaveBar threatCount={activeGeoThreats.length} criticalCount={severityCounts.critical ?? 0} />
               </div>
 
               {/* Intel Table */}

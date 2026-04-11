@@ -20,7 +20,8 @@ html { scroll-behavior: smooth; }
 body {
   font-family: var(--font-mono);
   background: #000000;
-  color: #e2e8f0;
+  color: #e6e6e6;
+  font-size: 15px;
   overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
 }
@@ -90,6 +91,8 @@ main, header, footer {
   border: 1px solid rgba(255, 0, 0, 0.15);
   border-radius: 12px;
   position: relative;
+  z-index: 1;
+  margin-bottom: 24px;
   overflow: hidden;
   transition: border-color 0.3s ease, box-shadow 0.3s ease;
 }

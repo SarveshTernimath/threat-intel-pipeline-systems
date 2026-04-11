@@ -59,8 +59,8 @@ export default function InsightsPanel({ threats }: InsightsPanelProps) {
         {/* ── Left: Severities + Top Vectors ── */}
         <div className="flex-1 space-y-5">
           <div className="flex items-center gap-2">
-            <PieChart size={14} className="text-cyan-500" />
-            <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-cyan-500">
+            <PieChart size={14} className="text-red-600" />
+            <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-red-600">
               Global Threat Insights
             </span>
           </div>
@@ -109,12 +109,12 @@ export default function InsightsPanel({ threats }: InsightsPanelProps) {
                     }}
                   >
                     <div className="flex items-center gap-2">
-                      <Zap size={10} className={i === 0 ? "text-cyan-500" : "text-gray-600"} />
-                      <span className={`text-[9px] font-mono uppercase tracking-wider ${i === 0 ? "text-cyan-400" : "text-gray-500"}`}>
+                      <Zap size={10} className={i === 0 ? "text-red-500" : "text-gray-600"} />
+                      <span className={`text-[9px] font-mono uppercase tracking-wider ${i === 0 ? "text-red-400" : "text-gray-500"}`}>
                         {type}
                       </span>
                     </div>
-                    <span className={`text-[9px] font-mono font-bold ${i === 0 ? "text-cyan-400" : "text-gray-600"}`}>
+                    <span className={`text-[9px] font-mono font-bold ${i === 0 ? "text-red-400" : "text-gray-600"}`}>
                       {count}
                     </span>
                   </div>
@@ -127,8 +127,8 @@ export default function InsightsPanel({ threats }: InsightsPanelProps) {
         {/* ── Right: Latest pulse streams ── */}
         <div className="flex-1 lg:pl-6 lg:border-l border-gray-800/50 space-y-4">
           <div className="flex items-center gap-2">
-            <List size={14} className="text-cyan-500" />
-            <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-cyan-500">
+            <List size={14} className="text-red-600" />
+            <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-red-600">
               Latest Pulse Streams
             </span>
           </div>

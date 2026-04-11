@@ -224,8 +224,9 @@ def ensure_index():
             requests.put(ES_INDEX_URL, **REQ_KWARGS)
     except Exception as e:
         print(f"Startup index check failed: {e}")
-    # Auto-seed realistic threat data if ES is empty or sparse
-    _seed_elasticsearch()
+    # Auto-seed realistic threat data ONLY in non-production environments
+    if os.getenv("ENV", "dev") != "prod":
+        _seed_elasticsearch()
 
 @app.get("/search")
 def search_threats(
