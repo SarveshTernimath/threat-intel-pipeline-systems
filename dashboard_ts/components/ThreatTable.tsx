@@ -26,7 +26,7 @@ function SeverityBadge({ severity }: { severity: string }) {
                        "#64748b";
 
   return (
-    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[9px] font-mono font-bold tracking-wider ${cls}`}>
+    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[14px] font-mono font-bold tracking-wider ${cls}`}>
       <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: dot, boxShadow: `0 0 4px ${dot}` }} />
       {s.toUpperCase()}
     </span>
@@ -37,11 +37,11 @@ function EmptyState({ searched }: { searched: boolean }) {
   return (
     <div className="flex flex-col items-center justify-center py-24 text-center">
       <ShieldOff className="text-gray-800 mb-4" size={52} strokeWidth={1} />
-      <p className="text-gray-600 font-mono text-sm">
+      <p className="text-gray-400 font-mono text-base">
         {searched ? "No threats matched your query." : "Enter a keyword to scan the threat database."}
       </p>
       {searched && (
-        <p className="text-gray-700 font-mono text-xs mt-2">
+        <p className="text-gray-300 font-mono text-base mt-2">
           Try broader terms like &quot;sql&quot;, &quot;xss&quot;, or &quot;rce&quot;
         </p>
       )}
@@ -53,8 +53,8 @@ function ErrorState({ message }: { message: string }) {
   return (
     <div className="flex flex-col items-center justify-center py-20 text-center">
       <ShieldAlert className="text-red-900 mb-4" size={52} strokeWidth={1} />
-      <p className="text-red-500 font-mono text-sm font-bold tracking-widest">CONNECTION FAILURE</p>
-      <p className="text-gray-600 font-mono text-xs mt-2 max-w-md">{message}</p>
+      <p className="text-red-500 font-mono text-base font-bold tracking-widest">CONNECTION FAILURE</p>
+      <p className="text-gray-400 font-mono text-base mt-2 max-w-md">{message}</p>
     </div>
   );
 }
@@ -74,7 +74,7 @@ export default function ThreatTable({ threats, isLoading, error, searched }: Pro
         background: "rgba(4, 10, 22, 0.8)",
       }}
     >
-      <table className="w-full text-sm font-mono min-w-[800px]">
+      <table className="w-full text-base font-mono min-w-[800px]">
         <thead>
           <tr
             style={{
@@ -85,7 +85,7 @@ export default function ThreatTable({ threats, isLoading, error, searched }: Pro
             {COLS.map((col) => (
               <th
                 key={col}
-                className="px-5 py-3 text-left text-[9px] uppercase tracking-widest font-semibold whitespace-nowrap"
+                className="px-5 py-3 text-left text-[14px] uppercase tracking-widest font-semibold whitespace-nowrap"
                 style={{ color: "rgba(0,229,255,0.4)" }}
               >
                 {col}
@@ -102,7 +102,7 @@ export default function ThreatTable({ threats, isLoading, error, searched }: Pro
             >
               <td className="px-5 py-4 whitespace-nowrap relative z-10">
                 <span
-                  className="font-bold text-xs transition-all duration-200 group-hover:text-red-300"
+                  className="font-bold text-base transition-all duration-200 group-hover:text-red-300"
                   style={{
                     color: "#ff6b78",
                     textShadow: "0 0 8px rgba(255,71,87,0.4)",
@@ -112,7 +112,7 @@ export default function ThreatTable({ threats, isLoading, error, searched }: Pro
                 </span>
               </td>
               <td className="px-5 py-4 max-w-xs relative z-10">
-                <p className="text-gray-400 leading-relaxed line-clamp-2 text-xs group-hover:text-gray-300 transition-colors">
+                <p className="text-gray-400 leading-relaxed line-clamp-2 text-base group-hover:text-gray-300 transition-colors">
                   {t.description || "No description available."}
                 </p>
                 {t.keywords?.length > 0 && (
@@ -120,7 +120,7 @@ export default function ThreatTable({ threats, isLoading, error, searched }: Pro
                     {t.keywords.slice(0, 3).map((kw, kwIndex) => (
                       <span
                         key={`${kw}-${kwIndex}`}
-                        className="text-[8px] px-1.5 py-0.5 rounded font-mono"
+                        className="text-[14px] px-1.5 py-0.5 rounded font-mono"
                         style={{
                           background: "rgba(0,229,255,0.06)",
                           border: "1px solid rgba(0,229,255,0.12)",
@@ -138,7 +138,7 @@ export default function ThreatTable({ threats, isLoading, error, searched }: Pro
               </td>
               <td className="px-5 py-4 whitespace-nowrap relative z-10">
                 <span
-                  className="text-[10px] px-2 py-0.5 rounded font-mono"
+                  className="text-[15px] px-2 py-0.5 rounded font-mono"
                   style={{
                     background: "rgba(192,132,252,0.08)",
                     border: "1px solid rgba(192,132,252,0.18)",
@@ -149,7 +149,7 @@ export default function ThreatTable({ threats, isLoading, error, searched }: Pro
                 </span>
               </td>
               <td className="px-5 py-4 whitespace-nowrap relative z-10">
-                <span className="text-[10px] font-mono text-gray-600">
+                <span className="text-[15px] font-mono text-gray-400">
                   {t.published_date || "—"}
                 </span>
               </td>

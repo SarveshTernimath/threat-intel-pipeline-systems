@@ -155,10 +155,10 @@ export default function DashboardPage() {
                 <Shield className="text-red-500" size={18} />
               </div>
               <div>
-                <h1 className="text-sm font-bold tracking-widest text-white font-mono hud-flicker">
+                <h1 className="text-base font-bold tracking-widest text-white font-mono hud-flicker">
                   THREAT INTEL <span style={{ color: "#ff0033", textShadow: "0 0 10px rgba(255,0,51,0.8)" }}>SYSTEM</span>
                 </h1>
-                <p className="text-[9px] text-red-900 font-mono tracking-widest">
+                <p className="text-[14px] text-red-900 font-mono tracking-widest">
                   CYBERSECURITY INTELLIGENCE · LIVE INGESTION
                 </p>
               </div>
@@ -172,7 +172,7 @@ export default function DashboardPage() {
                 { icon: Cpu,      label: "NLP ACTIVE",   color: "#ff3311" },
               ].map(({ icon: Icon, label, color }) => (
                 <div key={label}
-                  className="flex items-center gap-2 px-3 py-1.5 rounded-md font-mono text-[10px]"
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-md font-mono text-[15px]"
                   style={{
                     background: `${color}12`,
                     border: `1px solid ${color}30`,
@@ -187,10 +187,10 @@ export default function DashboardPage() {
             {/* Right: clock + threat count */}
             <div className="flex items-center gap-3 shrink-0">
               <div className="text-right hidden sm:block">
-                <p className="text-[11px] font-mono font-bold text-white tabular-nums">{timeStr}</p>
-                <p className="text-[9px] font-mono text-red-900">{dateStr}</p>
+                <p className="text-[14px] font-mono font-bold text-white tabular-nums">{timeStr}</p>
+                <p className="text-[14px] font-mono text-red-900">{dateStr}</p>
               </div>
-              <div className="flex items-center gap-2 px-3 py-1.5 rounded-md font-mono text-[10px]"
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-md font-mono text-[15px]"
                 style={{
                   background: "rgba(255,0,0,0.08)",
                   border: "1px solid rgba(255,0,0,0.25)",
@@ -201,7 +201,7 @@ export default function DashboardPage() {
                 <span className="text-red-900">THREATS</span>
               </div>
               {lastUpdatedAt && (
-                <div className="hidden lg:flex items-center gap-1.5 text-[9px] font-mono text-red-900">
+                <div className="hidden lg:flex items-center gap-1.5 text-[14px] font-mono text-red-900">
                   <RefreshCw size={8} />
                   {lastUpdatedAt.toLocaleTimeString()}
                 </div>
@@ -214,7 +214,7 @@ export default function DashboardPage() {
             style={{ borderColor: "rgba(255,0,0,0.08)", background: "rgba(255,0,0,0.03)" }}>
             <div className="ticker-content h-full flex items-center gap-8 px-4">
               {tickerItems.map((item, i) => (
-                <span key={i} className="text-[9px] font-mono whitespace-nowrap"
+                <span key={i} className="text-[14px] font-mono whitespace-nowrap"
                   style={{ color: item.includes("[CRITICAL]") ? "#ff0033" : item.includes("[HIGH]") ? "#cc3300" : "rgba(255,80,80,0.4)" }}>
                   ◆ {item}
                 </span>
@@ -240,11 +240,11 @@ export default function DashboardPage() {
           <div className="glass-card p-5 space-y-4">
             <div className="flex items-center gap-2">
               <Terminal size={12} className="text-red-700" />
-              <span className="text-[9px] text-red-800 font-mono uppercase tracking-widest">
+              <span className="text-[14px] text-red-800 font-mono uppercase tracking-widest">
                 Intelligence Query Terminal
               </span>
               {query && (
-                <span className="ml-auto text-[9px] font-mono" style={{ color: "rgba(255,0,0,0.4)" }}>
+                <span className="ml-auto text-[14px] font-mono" style={{ color: "rgba(255,0,0,0.4)" }}>
                   {isLoading ? "⟳ Scanning..." : `↑ "${query}"`}
                 </span>
               )}
@@ -264,11 +264,11 @@ export default function DashboardPage() {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Globe2 size={13} className="text-red-700" />
-                    <span className="text-[9px] font-mono uppercase tracking-widest text-red-700">
+                    <span className="text-[14px] font-mono uppercase tracking-widest text-red-700">
                       Global Threat Cartography
                     </span>
                   </div>
-                  <span className="text-[9px] font-mono text-red-900">
+                  <span className="text-[14px] font-mono text-red-900">
                     <span className="text-red-600">{activeGeoThreats.length}</span> geo-tagged threats
                   </span>
                 </div>
@@ -282,12 +282,12 @@ export default function DashboardPage() {
                 <div className="flex items-center justify-between flex-wrap gap-3">
                   <div className="flex items-center gap-2">
                     <Terminal size={12} className="text-red-900" />
-                    <span className="text-[9px] text-red-900 font-mono uppercase tracking-widest">
+                    <span className="text-[14px] text-red-900 font-mono uppercase tracking-widest">
                       Threat Intelligence Records
                     </span>
                   </div>
                   {filteredResults.length > 0 && (
-                    <span className="text-[9px] font-mono" style={{ color: "rgba(255,0,0,0.35)" }}>
+                    <span className="text-[14px] font-mono" style={{ color: "rgba(255,0,0,0.35)" }}>
                       {filteredResults.length} record{filteredResults.length !== 1 ? "s" : ""}
                     </span>
                   )}
@@ -301,14 +301,14 @@ export default function DashboardPage() {
           {/* Footer */}
           <footer className="text-center py-5 mt-4" style={{ borderTop: "1px solid rgba(255,0,0,0.06)" }}>
             <div className="flex items-center justify-center gap-6 flex-wrap">
-              <span className="text-[9px] font-mono text-red-950">THREAT INTEL PIPELINE SYSTEMS</span>
+              <span className="text-[14px] font-mono text-red-950">THREAT INTEL PIPELINE SYSTEMS</span>
               {["NVD", "AlienVault OTX", "URLHAUS", "RSS FEEDS", "IP FEEDS"].map((src) => (
-                <span key={src} className="text-[9px] font-mono" style={{ color: "rgba(255,0,0,0.2)" }}>
+                <span key={src} className="text-[14px] font-mono" style={{ color: "rgba(255,0,0,0.2)" }}>
                   ◆ {src}
                 </span>
               ))}
             </div>
-            <p className="text-[8px] font-mono text-red-950 mt-2">
+            <p className="text-[14px] font-mono text-red-950 mt-2">
               Real-time threat ingestion · Elasticsearch · Redis · NLP enrichment
             </p>
           </footer>

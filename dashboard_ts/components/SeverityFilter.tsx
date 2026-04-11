@@ -24,7 +24,7 @@ const LEVELS: {
 export default function SeverityFilter({ selected, onChange, counts }: Props) {
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <span className="text-[9px] text-gray-700 font-mono uppercase tracking-widest mr-1">Filter:</span>
+      <span className="text-[14px] text-gray-300 font-mono uppercase tracking-widest mr-1">Filter:</span>
       {LEVELS.map(({ label, value, accent, glow }) => {
         const isActive = selected === value;
         const count =
@@ -37,7 +37,7 @@ export default function SeverityFilter({ selected, onChange, counts }: Props) {
             key={value}
             id={`filter-${value}`}
             onClick={() => onChange(value)}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-md text-[9px] font-mono font-semibold tracking-wider transition-all duration-200"
+            className="flex items-center gap-2 px-3 py-1.5 rounded-md text-[14px] font-mono font-semibold tracking-wider transition-all duration-200"
             style={{
               background: isActive ? `${accent}18` : "rgba(255,255,255,0.03)",
               border: `1px solid ${isActive ? accent : "rgba(255,255,255,0.07)"}`,
@@ -56,7 +56,7 @@ export default function SeverityFilter({ selected, onChange, counts }: Props) {
             {label}
             {count > 0 && (
               <span
-                className="text-[8px] rounded px-1 py-0.5"
+                className="text-[14px] rounded px-1 py-0.5"
                 style={{
                   background: isActive ? `${accent}22` : "rgba(255,255,255,0.05)",
                   color: isActive ? accent : "rgba(148,163,184,0.4)",

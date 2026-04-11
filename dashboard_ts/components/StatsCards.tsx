@@ -105,8 +105,8 @@ function StatCard({ label, sublabel, numericValue, textValue, icon: Icon, accent
             {animated.toLocaleString()}
           </p>
         )}
-        <p className="text-[9px] text-gray-600 font-mono uppercase tracking-widest mt-0.5">{label}</p>
-        <p className="text-[8px] text-gray-700 font-mono mt-0.5">{sublabel}</p>
+        <p className="text-[14px] text-gray-400 font-mono uppercase tracking-widest mt-0.5">{label}</p>
+        <p className="text-[14px] text-gray-300 font-mono mt-0.5">{sublabel}</p>
       </div>
 
       {/* Hover glow veil */}

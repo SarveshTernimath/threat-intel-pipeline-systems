@@ -67,15 +67,15 @@ export default function ThreatWaveChart({ threats }: ThreatWaveChartProps) {
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <Activity size={13} className="text-red-500" />
-          <span className="text-[10px] font-mono text-red-500 uppercase tracking-widest">
+          <span className="text-[15px] font-mono text-red-500 uppercase tracking-widest">
             Threat Activity Timeline
           </span>
         </div>
         <div className="flex items-center gap-3">
-          <span className="flex items-center gap-1.5 text-[9px] font-mono text-gray-600">
+          <span className="flex items-center gap-1.5 text-[14px] font-mono text-gray-400">
             <span className="w-3 h-0.5 bg-red-500 inline-block rounded" /> Total
           </span>
-          <span className="flex items-center gap-1.5 text-[9px] font-mono text-gray-600">
+          <span className="flex items-center gap-1.5 text-[14px] font-mono text-gray-400">
             <span className="w-3 h-0.5 bg-red-800 inline-block rounded" /> Critical
           </span>
         </div>
@@ -207,7 +207,7 @@ export default function ThreatWaveChart({ threats }: ThreatWaveChartProps) {
         {/* X-axis labels */}
         <div className="flex justify-between px-2 pb-2">
           {tickIndices.map((idx) => (
-            <span key={idx} className="text-[8px] font-mono text-red-900">
+            <span key={idx} className="text-[14px] font-mono text-red-900">
               {chartData[idx]?.[0]?.slice(5) ?? ""}
             </span>
           ))}

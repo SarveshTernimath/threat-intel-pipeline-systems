@@ -20,8 +20,8 @@ html { scroll-behavior: smooth; }
 body {
   font-family: var(--font-mono);
   background: #000000;
-  color: #e6e6e6;
-  font-size: 15px;
+  color: #ffffff;
+  font-size: 16px;
   overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
 }

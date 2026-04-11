@@ -134,14 +134,14 @@ export default function FlatThreatMap({ threats }: FlatThreatMapProps) {
             bottom: tooltip.y > 70 ? `calc(${100 - tooltip.y}% + 10px)` : "auto",
           }}
         >
-          <div className="glass-card px-3 py-2 min-w-[180px] border-cyan-500/30 text-[10px] font-mono">
+          <div className="glass-card px-3 py-2 min-w-[180px] border-cyan-500/30 text-[15px] font-mono">
             <p className="text-red-400 font-bold mb-1">{tooltip.threat.cve_id || "—"}</p>
             <p className="text-gray-400">
-              <span className="text-gray-600 uppercase">LOC: </span>
+              <span className="text-gray-400 uppercase">LOC: </span>
               {tooltip.threat.country || "Unknown"}
             </p>
             <p className="text-gray-400">
-              <span className="text-gray-600 uppercase">SEV: </span>
+              <span className="text-gray-400 uppercase">SEV: </span>
               <span className={
                 tooltip.threat.severity === "critical" ? "text-red-400" :
                 tooltip.threat.severity === "high" ? "text-orange-400" :
@@ -152,7 +152,7 @@ export default function FlatThreatMap({ threats }: FlatThreatMapProps) {
             </p>
             {tooltip.threat.attack_type && (
               <p className="text-gray-400">
-                <span className="text-gray-600 uppercase">VEC: </span>
+                <span className="text-gray-400 uppercase">VEC: </span>
                 {tooltip.threat.attack_type}
               </p>
             )}
@@ -164,7 +164,7 @@ export default function FlatThreatMap({ threats }: FlatThreatMapProps) {
       <div className="absolute top-4 left-4 z-20 pointer-events-none">
         <div className="flex items-center gap-2 px-3 py-1.5 bg-black/70 border border-cyan-900/60 rounded backdrop-blur-md">
           <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse shadow-[0_0_8px_rgba(0,229,255,1)]" />
-          <span className="text-[10px] font-mono text-cyan-400 tracking-widest uppercase font-semibold">
+          <span className="text-[15px] font-mono text-cyan-400 tracking-widest uppercase font-semibold">
             2D Threat Radar
           </span>
         </div>
@@ -180,18 +180,18 @@ export default function FlatThreatMap({ threats }: FlatThreatMapProps) {
             return (
               <div key={s} className="flex items-center gap-1.5">
                 <span className="w-1.5 h-1.5 rounded-full" style={{ background: style.color, boxShadow: `0 0 5px ${style.glow}` }} />
-                <span className="text-[9px] font-mono text-gray-500 uppercase">{s} <span style={{ color: style.color }}>{count}</span></span>
+                <span className="text-[14px] font-mono text-gray-500 uppercase">{s} <span style={{ color: style.color }}>{count}</span></span>
               </div>
             );
           })}
         </div>
-        <span className="text-[9px] font-mono text-gray-700">{geoThreats.length} GEO TARGETS</span>
+        <span className="text-[14px] font-mono text-gray-300">{geoThreats.length} GEO TARGETS</span>
       </div>
 
       {/* No data overlay */}
       {geoThreats.length === 0 && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <span className="text-cyan-900 font-mono text-sm animate-pulse">
+          <span className="text-cyan-900 font-mono text-base animate-pulse">
             Awaiting geo-tagged threat streams...
           </span>
         </div>

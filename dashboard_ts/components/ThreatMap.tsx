@@ -10,7 +10,7 @@ const Globe = dynamic(() => import("react-globe.gl"), {
     <div className="w-full h-full flex items-center justify-center bg-[#020811]">
       <div className="flex flex-col items-center gap-3">
         <div className="w-8 h-8 rounded-full border-2 border-cyan-900 border-t-cyan-400 animate-spin" />
-        <span className="text-cyan-800 font-mono text-xs tracking-widest animate-pulse">
+        <span className="text-cyan-800 font-mono text-base tracking-widest animate-pulse">
           INITIALIZING GLOBAL RADAR
         </span>
       </div>
@@ -151,10 +151,10 @@ export default function ThreatMap({ threats = [] }: ThreatMapProps) {
               setMapMode(mode);
               setSelectedThreat(null);
             }}
-            className={`map-tab px-4 py-1.5 text-[10px] font-mono uppercase tracking-widest border ${
+            className={`map-tab px-4 py-1.5 text-[15px] font-mono uppercase tracking-widest border ${
               mapMode === mode
                 ? "active rounded-tl-md rounded-tr-md border-b-transparent"
-                : "text-gray-600 border-transparent hover:text-gray-400"
+                : "text-gray-400 border-transparent hover:text-gray-400"
             }`}
           >
             {mode === "3d" ? "⬡ 3D Globe" : "⬛ 2D Radar"}
@@ -230,7 +230,7 @@ export default function ThreatMap({ threats = [] }: ThreatMapProps) {
             {/* No geo data overlay */}
             {geoThreats.length === 0 && (
               <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-20">
-                <span className="text-cyan-900 font-mono text-sm tracking-widest animate-pulse text-center px-4">
+                <span className="text-cyan-900 font-mono text-base tracking-widest animate-pulse text-center px-4">
                   Awaiting geo-tagged threat streams...
                 </span>
               </div>
@@ -240,7 +240,7 @@ export default function ThreatMap({ threats = [] }: ThreatMapProps) {
             <div className="absolute top-4 left-4 pointer-events-none z-10">
               <div className="flex items-center gap-2 px-3 py-1.5 bg-black/70 border border-cyan-900/60 rounded backdrop-blur-md">
                 <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse shadow-[0_0_10px_rgba(255,71,87,1)]" />
-                <span className="text-[10px] font-mono text-red-400 tracking-widest font-semibold uppercase">
+                <span className="text-[15px] font-mono text-red-400 tracking-widest font-semibold uppercase">
                   Live Threat Radar
                 </span>
               </div>
@@ -249,7 +249,7 @@ export default function ThreatMap({ threats = [] }: ThreatMapProps) {
             {/* Arc count badge */}
             <div className="absolute top-4 right-4 pointer-events-none z-10">
               <div className="px-3 py-1.5 bg-black/60 border border-gray-800/60 rounded backdrop-blur-md">
-                <span className="text-[10px] font-mono text-gray-600">
+                <span className="text-[15px] font-mono text-gray-400">
                   <span className="text-cyan-500">{arcsData.length}</span> ACTIVE ARCS
                 </span>
               </div>
@@ -259,26 +259,26 @@ export default function ThreatMap({ threats = [] }: ThreatMapProps) {
             <div className="absolute bottom-4 right-4 pointer-events-none z-10 flex flex-col items-end">
               {selectedThreat && (
                 <div className="glass-card p-4 w-72 pointer-events-auto animate-slide-in-right border-cyan-500/30 shadow-[0_0_24px_rgba(0,229,255,0.15)]">
-                  <h3 className="text-[10px] font-mono font-bold text-cyan-400 mb-3 border-b border-cyan-900/50 pb-2 flex justify-between items-center tracking-widest">
+                  <h3 className="text-[15px] font-mono font-bold text-cyan-400 mb-3 border-b border-cyan-900/50 pb-2 flex justify-between items-center tracking-widest">
                     ◈ TARGET LOCK
                     <button
                       onClick={() => setSelectedThreat(null)}
-                      className="text-gray-600 hover:text-cyan-400 transition-colors text-xs ml-2"
+                      className="text-gray-400 hover:text-cyan-400 transition-colors text-base ml-2"
                     >
                       ✕
                     </button>
                   </h3>
-                  <div className="space-y-2 text-[10px] font-mono">
+                  <div className="space-y-2 text-[15px] font-mono">
                     {[
                       { label: "Origin IP", val: selectedThreat.displayIP || "—", cls: "text-red-400 font-bold" },
                       { label: "Location",  val: selectedThreat.location || "—", cls: "text-gray-300 truncate max-w-[130px]" },
                       { label: "Vector",    val: selectedThreat.attack_type || "UNKNOWN", cls: "text-cyan-300 truncate max-w-[130px]" },
                       { label: "Severity",  val: (selectedThreat.severity || "LOW").toUpperCase(), cls: `font-bold uppercase ${sevColor(selectedThreat.severity)}` },
                       { label: "Coords",    val: `[${selectedThreat.displayLat}, ${selectedThreat.displayLng}]`, cls: "text-gray-400" },
-                      { label: "Date",      val: selectedThreat.published_date || "LIVE", cls: "text-gray-600 text-[9px]" },
+                      { label: "Date",      val: selectedThreat.published_date || "LIVE", cls: "text-gray-400 text-[14px]" },
                     ].map(({ label, val, cls }) => (
                       <div key={label} className="flex justify-between gap-2 border-b border-gray-900/60 pb-1.5">
-                        <span className="text-gray-600 uppercase shrink-0">{label}</span>
+                        <span className="text-gray-400 uppercase shrink-0">{label}</span>
                         <span className={cls} title={val}>{val}</span>
                       </div>
                     ))}

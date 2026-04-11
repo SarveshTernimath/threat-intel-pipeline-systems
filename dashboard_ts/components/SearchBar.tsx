@@ -60,7 +60,7 @@ export default function SearchBar({ onSearch, isLoading, initialValue = "" }: Pr
               boxShadow: focused ? "0 0 20px rgba(0,229,255,0.1), inset 0 0 12px rgba(0,229,255,0.03)" : "none",
               transition: "all 0.25s ease",
             }}
-            className="w-full pl-11 pr-4 py-3.5 rounded-lg text-gray-100 placeholder-gray-700 font-mono text-sm focus:outline-none"
+            className="w-full pl-11 pr-4 py-3.5 rounded-lg text-gray-100 placeholder-gray-700 font-mono text-base focus:outline-none"
           />
           {/* Animated bottom border on focus */}
           <div
@@ -78,7 +78,7 @@ export default function SearchBar({ onSearch, isLoading, initialValue = "" }: Pr
           id="search-submit-btn"
           type="submit"
           disabled={!isClient || isLoading || value.trim() === ""}
-          className="relative px-7 py-3.5 rounded-lg font-bold text-xs tracking-widest font-mono transition-all duration-200 disabled:opacity-30 disabled:cursor-not-allowed overflow-hidden group"
+          className="relative px-7 py-3.5 rounded-lg font-bold text-base tracking-widest font-mono transition-all duration-200 disabled:opacity-30 disabled:cursor-not-allowed overflow-hidden group"
           style={{
             background: isLoading
               ? "rgba(0,229,255,0.08)"

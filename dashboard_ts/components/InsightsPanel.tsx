@@ -60,21 +60,21 @@ export default function InsightsPanel({ threats }: InsightsPanelProps) {
         <div className="flex-1 space-y-5">
           <div className="flex items-center gap-2">
             <PieChart size={14} className="text-red-600" />
-            <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-red-600">
+            <span className="text-[15px] font-mono font-bold uppercase tracking-widest text-red-600">
               Global Threat Insights
             </span>
           </div>
 
           {/* Severity bars */}
           <div className="space-y-2">
-            <p className="text-[9px] text-gray-600 font-mono uppercase tracking-widest">Severity Distribution</p>
+            <p className="text-[14px] text-gray-400 font-mono uppercase tracking-widest">Severity Distribution</p>
             {(["critical", "high", "medium", "low"] as const).map((sev) => {
               const count = stats.severities[sev] ?? 0;
               const pct = stats.total > 0 ? Math.max(2, (count / stats.total) * 100) : 0;
               const cfg = SEV_CONFIG[sev];
               return (
                 <div key={sev} className="flex items-center gap-3 group">
-                  <span className={`w-14 text-[9px] font-mono uppercase ${cfg.text} tracking-wider`}>{sev}</span>
+                  <span className={`w-14 text-[14px] font-mono uppercase ${cfg.text} tracking-wider`}>{sev}</span>
                   <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.04)" }}>
                     <div
                       className="h-full rounded-full transition-all duration-1000"
@@ -85,9 +85,9 @@ export default function InsightsPanel({ threats }: InsightsPanelProps) {
                       }}
                     />
                   </div>
-                  <div className="flex gap-2 text-[9px] font-mono w-14 justify-end">
+                  <div className="flex gap-2 text-[14px] font-mono w-14 justify-end">
                     <span className={cfg.text}>{count}</span>
-                    <span className="text-gray-700">{Math.round((count / (stats.total || 1)) * 100)}%</span>
+                    <span className="text-gray-300">{Math.round((count / (stats.total || 1)) * 100)}%</span>
                   </div>
                 </div>
               );
@@ -97,7 +97,7 @@ export default function InsightsPanel({ threats }: InsightsPanelProps) {
           {/* Top Attack Vectors */}
           {stats.topAttacks.length > 0 && (
             <div className="space-y-2">
-              <p className="text-[9px] text-gray-600 font-mono uppercase tracking-widest">Top Attack Vectors</p>
+              <p className="text-[14px] text-gray-400 font-mono uppercase tracking-widest">Top Attack Vectors</p>
               <div className="space-y-1.5">
                 {stats.topAttacks.map(([type, count], i) => (
                   <div
@@ -109,12 +109,12 @@ export default function InsightsPanel({ threats }: InsightsPanelProps) {
                     }}
                   >
                     <div className="flex items-center gap-2">
-                      <Zap size={10} className={i === 0 ? "text-red-500" : "text-gray-600"} />
-                      <span className={`text-[9px] font-mono uppercase tracking-wider ${i === 0 ? "text-red-400" : "text-gray-500"}`}>
+                      <Zap size={10} className={i === 0 ? "text-red-500" : "text-gray-400"} />
+                      <span className={`text-[14px] font-mono uppercase tracking-wider ${i === 0 ? "text-red-400" : "text-gray-500"}`}>
                         {type}
                       </span>
                     </div>
-                    <span className={`text-[9px] font-mono font-bold ${i === 0 ? "text-red-400" : "text-gray-600"}`}>
+                    <span className={`text-[14px] font-mono font-bold ${i === 0 ? "text-red-400" : "text-gray-400"}`}>
                       {count}
                     </span>
                   </div>
@@ -128,7 +128,7 @@ export default function InsightsPanel({ threats }: InsightsPanelProps) {
         <div className="flex-1 lg:pl-6 lg:border-l border-gray-800/50 space-y-4">
           <div className="flex items-center gap-2">
             <List size={14} className="text-red-600" />
-            <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-red-600">
+            <span className="text-[15px] font-mono font-bold uppercase tracking-widest text-red-600">
               Latest Pulse Streams
             </span>
           </div>
@@ -147,25 +147,25 @@ export default function InsightsPanel({ threats }: InsightsPanelProps) {
                   {t.severity === "critical" ? (
                     <Skull size={12} className="text-red-500 animate-pulse" />
                   ) : (
-                    <AlertTriangle size={12} className="text-gray-600 group-hover:text-cyan-500 transition-colors" />
+                    <AlertTriangle size={12} className="text-gray-400 group-hover:text-cyan-500 transition-colors" />
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-[10px] font-mono font-semibold text-gray-300 group-hover:text-white transition-colors truncate">
+                  <p className="text-[15px] font-mono font-semibold text-gray-300 group-hover:text-white transition-colors truncate">
                     {t.cve_id}
-                    <span className="text-gray-700 font-normal ml-1">[{t.source}]</span>
+                    <span className="text-gray-300 font-normal ml-1">[{t.source}]</span>
                   </p>
-                  <p className="text-[9px] font-mono text-gray-600 mt-0.5 line-clamp-2">
+                  <p className="text-[14px] font-mono text-gray-400 mt-0.5 line-clamp-2">
                     {t.description || "No context provided"}
                   </p>
                 </div>
-                <span className="text-[9px] font-mono text-gray-700 whitespace-nowrap shrink-0">
+                <span className="text-[14px] font-mono text-gray-300 whitespace-nowrap shrink-0">
                   {t.published_date}
                 </span>
               </div>
             ))}
             {stats.recent.length === 0 && (
-              <p className="text-[10px] font-mono text-gray-700 animate-pulse">
+              <p className="text-[15px] font-mono text-gray-300 animate-pulse">
                 Awaiting intelligence streams...
               </p>
             )}
