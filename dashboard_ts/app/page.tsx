@@ -47,15 +47,21 @@ export default function DashboardPage() {
     return () => clearInterval(id);
   }, [lastUpdatedAt]);
 
-  // Animated display count — oscillates ±1 around real count for "live" feel
+  // Smooth display count interpolator previous -> new over time
   useEffect(() => {
-    const base = threats.length;
-    if (base === 0) { setDisplayCount(0); return; }
-    setDisplayCount(base);
+    const target = threats.length;
     const id = setInterval(() => {
-      const delta = Math.random() < 0.5 ? 0 : (Math.random() < 0.5 ? 1 : -1);
-      setDisplayCount(Math.max(0, base + delta));
-    }, 4000);
+      setDisplayCount((prev) => {
+        if (prev === target) {
+          clearInterval(id);
+          return prev;
+        }
+        const diff = target - prev;
+        // Faster step if difference is large
+        const step = Math.max(1, Math.floor(Math.abs(diff) / 10));
+        return prev < target ? prev + step : prev - step;
+      });
+    }, 50);
     return () => clearInterval(id);
   }, [threats.length]);
 
@@ -69,9 +75,14 @@ export default function DashboardPage() {
     try {
       const raw = await searchThreats(q);
       const data = Array.from(new Map(raw.map((d: Threat) => [d.cve_id, d])).values());
-      setThreats(data);
-      setLastUpdatedAt(new Date());
-      setSecondsAgo(0);
+      setThreats((prev) => {
+        if (JSON.stringify(prev) !== JSON.stringify(data)) {
+          setLastUpdatedAt(new Date());
+          setSecondsAgo(0);
+          return data;
+        }
+        return prev;
+      });
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to connect to threat intelligence backend.");
       setThreats([]);
@@ -87,9 +98,14 @@ export default function DashboardPage() {
     try {
       const raw = await fetchAllThreats(50);
       const data = Array.from(new Map(raw.map((d: Threat) => [d.cve_id, d])).values());
-      setThreats(data);
-      setLastUpdatedAt(new Date());
-      setSecondsAgo(0);
+      setThreats((prev) => {
+        if (JSON.stringify(prev) !== JSON.stringify(data)) {
+          setLastUpdatedAt(new Date());
+          setSecondsAgo(0);
+          return data;
+        }
+        return prev;
+      });
       setSearched(true);
     } catch {
       if (!silent) void handleSearch(DEFAULT_KEYWORD);
@@ -131,9 +147,14 @@ export default function DashboardPage() {
       try {
         const raw = await searchThreats(query);
         const data = Array.from(new Map(raw.map((d: Threat) => [d.cve_id, d])).values());
-        setThreats(data);
-        setLastUpdatedAt(new Date());
-        setSecondsAgo(0);
+        setThreats((prev) => {
+          if (JSON.stringify(prev) !== JSON.stringify(data)) {
+            setLastUpdatedAt(new Date());
+            setSecondsAgo(0);
+            return data;
+          }
+          return prev;
+        });
       } catch (err) { console.error("Refresh failed", err); }
     }, 20000);
     return () => clearInterval(id);

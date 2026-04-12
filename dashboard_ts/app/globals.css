@@ -4,10 +4,10 @@
    FONTS & ROOT VARS
    ════════════════════════════════════════ */
 :root {
-  --primary:   #ff0033;
-  --accent:    #ff1a1a;
-  --accent-dim:#cc0000;
-  --bg:        #000000;
+  --primary:   #ff2a2a;
+  --accent:    #ff4040;
+  --accent-dim:#cc2020;
+  --bg:        #050505;
   --font-mono: "JetBrains Mono", monospace;
 }
 
@@ -18,9 +18,9 @@
 html { scroll-behavior: smooth; }
 
 body {
-  font-family: var(--font-mono);
-  background: #000000;
-  color: #ffffff;
+  font-family: var(--font-inter), sans-serif;
+  background: #050505;
+  color: #e6e6e6;
   font-size: 16px;
   overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
@@ -85,7 +85,7 @@ main, header, footer {
    GLASSMORPHISM RED CARDS
    ════════════════════════════════════════ */
 .glass-card {
-  background: rgba(8, 0, 0, 0.72);
+  background: rgba(255, 0, 0, 0.08);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
   border: 1px solid rgba(255, 0, 0, 0.15);
@@ -100,11 +100,11 @@ main, header, footer {
   content: "";
   position: absolute;
   top: 0; left: 0; right: 0; height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(255,0,0,0.4), transparent);
+  background: linear-gradient(90deg, transparent, rgba(255,0,0,0.3), transparent);
 }
 .glass-card:hover {
-  border-color: rgba(255,0,0,0.4);
-  box-shadow: 0 0 24px rgba(255,0,0,0.12), inset 0 0 30px rgba(255,0,0,0.04);
+  border-color: rgba(255,0,0,0.3);
+  box-shadow: 0 0 6px rgba(255,0,0,0.2);
 }
 
 /* ════════════════════════════════════════
